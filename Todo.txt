@@ -1,0 +1,37 @@
+pip install django
+pip install djangorestframework
+pip install djangorestframework-simplejwt
+pip install markdown
+pip install django-filter
+pip install postgres
+pip install django-cors-headers
+pip install crispy-bootstrap5
+pip install psycopg2-binary
+pip install timedelta
+pip install pillow
+pip install django-anymail
+pip install django-jazzmin
+pip install daphne
+pip install decorator
+pip install environs
+pip install django-shortuuidfield
+pip install django-ckeditor-5
+
+django-admin startproject mysite djangotutorial
+python manage.py runserver
+python manage.py startapp users
+python manage.py createsuperuser
+python manage.py makemigrations
+python manage.py migrate
+
+
+
+npx create-react-app frontend
+npm install
+npm install axios
+npm i sweeralert2
+npm install jwt-decode react-router-dom dayjs
+
+npm install react-router-dom@5
+
+
