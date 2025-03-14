@@ -93,26 +93,29 @@ const Purchases = () => {
                   </div>
                 )}
                 {/* Show payment status with detailed information */}
+                // Inside the render method, update the payment status display
                 {order.payment_status && (
                   <div className="payment-status mt-2">
                     <p className="card-text">
                       <strong>Payment Status:</strong>{' '}
                       <span className={`badge bg-${
-                        order.payment_status === 'completed' ? 'success' : 
-                        order.payment_status === 'pending' ? 'warning' :
-                        order.payment_status === 'failed' ? 'danger' : 'secondary'
+                        order.payment_status === 'Paid' ? 'success' : 
+                        order.payment_status === 'Processing' ? 'warning' :
+                        order.payment_status === 'Failed' ? 'danger' : 'secondary'
                       }`}>
                         {order.payment_status.toUpperCase()}
                       </span>
                     </p>
-                    {order.payment_status === 'failed' && (
-                      <div className="alert alert-danger mt-2">
-                        <small>
-                          Payment failed. Please try again or contact support if the problem persists.
-                          {order.payment_error && (
-                            <span className="d-block mt-1">Error: {order.payment_error}</span>
-                          )}
-                        </small>
+                    {order.status === 'pending' && order.payment_url && (
+                      <div className="mt-3">
+                        <a 
+                          href={order.payment_url} 
+                          className="btn btn-primary"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Complete Payment with PayPal
+                        </a>
                       </div>
                     )}
                   </div>

@@ -2,7 +2,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
-from store.views import create_order, paypal_success, paypal_cancel
+from store.views import create_order, paypal_success, paypal_cancel, complete_order
 
 
 urlpatterns = [
@@ -12,6 +12,7 @@ urlpatterns = [
     path('api/', include("vendor.urls")),
     path('api/', include("customer.urls")),
     path('api/orders/', create_order, name='create-order'),
+    path('api/orders/<int:order_id>/complete/', complete_order, name='complete-order'),
     path('api/payments/paypal/success/', paypal_success, name='paypal-success'),
     path('api/payments/paypal/cancel/', paypal_cancel, name='paypal-cancel'),
     path("ckeditor5/",include("django_ckeditor_5.urls")),

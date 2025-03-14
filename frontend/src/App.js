@@ -24,10 +24,8 @@ import ProductDetail from './Shop/ProductDetail';
 import Checkout from './views/Checkout';
 import Purchases from './views/Purchases';
 import OrderDetail from './views/OrderDetail';
-
-
-
-
+import OrderSuccess from './views/OrderSuccess';
+import OrderCancel from './views/OrderCancel';
 
 function App() {
   return (
@@ -48,8 +46,11 @@ function App() {
                 <PrivateRoutes path="/wishlist" component={Wishlist} />
                 <PrivateRoutes path="/address" component={Address} />
                 <PrivateRoutes path="/profile" component={Profile} />
+                <PrivateRoutes path="/notifications" component={Notifications} />
                 
                 <PrivateRoutes exact path="/checkout" component={Checkout} />
+                <PrivateRoutes exact path="/checkout/success" component={OrderSuccess} />
+                <PrivateRoutes exact path="/checkout/cancel" component={OrderCancel} />
                 <PrivateRoutes exact path="/purchases" component={Purchases} />
                 <PrivateRoutes exact path="/order/:id" component={OrderDetail} />
                 <Route path="/product/:id" component={ProductDetail} />
@@ -62,8 +63,6 @@ function App() {
     </Router>
   );
 }
-
-
 
 export default App
 

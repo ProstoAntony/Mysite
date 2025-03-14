@@ -8,17 +8,11 @@ import os
 env = Env()
 env.read_env()
 
-# PayPal Settings
-# Move DEBUG setting before PAYPAL_CONFIG
-DEBUG = True
+
 
 # Then define PAYPAL_CONFIG
-PAYPAL_CONFIG = {
-    'client_id': env.str('PAYPAL_CLIENT_ID'),
-    'client_secret': env.str('PAYPAL_SECRET_ID'),
-    'api_url': 'https://api-m.sandbox.paypal.com' if DEBUG else 'https://api-m.paypal.com',
-    'mode': 'sandbox' if DEBUG else 'live'  # Оставляем только одну настройку mode
-}
+REACT_APP_PAYPAL_CLIENT_ID = env('PAYPAL_CLIENT_ID')
+REACT_APP_PAYPAL_SECRET_ID = env('PAYPAL_SECRET_ID')
 
 DATABASES = DATABASES_CONFIG
 

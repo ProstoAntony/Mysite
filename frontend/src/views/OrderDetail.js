@@ -13,6 +13,7 @@ const OrderDetail = () => {
     const fetchOrderDetail = async () => {
       try {
         const response = await api.get(`/orders/${id}/`);
+        console.log('Order detail response:', response.data);
         setOrder(response.data);
         setLoading(false);
       } catch (err) {
@@ -52,9 +53,19 @@ const OrderDetail = () => {
   }
   
   // Calculate order summary
-  const subtotal = order.items.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0);
+  const subtotal = order.order_items ? 
+    order.order_items.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0) : 
+    parseFloat(order.subtotal || 0);
+    
   const shipping = subtotal > 50 ? 0 : 5.99;
-  const tax = subtotal * 0.085;
+  const tax = parseFloat(order.tax || (subtotal * 0.085));
+  const total = parseFloat(order.total_price || 0);
+  
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString();
+  };
   
   return (
     <div className="container mt-5 pt-5">
@@ -68,33 +79,46 @@ const OrderDetail = () => {
       <div className="card mb-4">
         <div className="card-header bg-dark text-white">
           <div className="d-flex justify-content-between align-items-center">
-            <h4 className="mb-0">Order #{order.order_number}</h4>
+            <h4 className="mb-0">Order #{order.id}</h4>
             <div>
               <span className={`badge me-2 ${
-                order.payment_status === 'completed' ? 'bg-success' : 
-                order.payment_status === 'refunded' ? 'bg-info' : 
-                order.payment_status === 'failed' ? 'bg-danger' : 'bg-warning'
+                order.payment_status === 'Paid' ? 'bg-success' : 
+                order.payment_status === 'Processing' ? 'bg-warning' :
+                'bg-danger'
               }`}>
-                Payment: {order.payment_status.toUpperCase()}
+                {order.payment_status}
               </span>
               <span className={`badge ${
-                order.order_status === 'delivered' ? 'bg-success' : 
-                order.order_status === 'shipped' ? 'bg-info' : 
-                order.order_status === 'cancelled' ? 'bg-danger' : 'bg-warning'
+                order.status === 'completed' || order.status === 'Paid' ? 'bg-success' : 
+                order.status === 'pending' ? 'bg-warning' : 
+                'bg-danger'
               }`}>
-                Status: {order.order_status.toUpperCase()}
+                {order.status}
               </span>
             </div>
           </div>
         </div>
+        
+        {order.status === 'pending' && order.payment_url && (
+          <div className="mt-3 text-center">
+            <a 
+              href={order.payment_url}
+              className="btn btn-primary btn-lg"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Complete Payment with PayPal
+            </a>
+          </div>
+        )}
         
         <div className="card-body">
           <div className="row">
             <div className="col-md-6 mb-4">
               <h5>Order Information</h5>
               <p>
-                <strong>Date:</strong> {new Date(order.created_at).toLocaleDateString()}<br />
-                <strong>Payment Method:</strong> {order.payment_method === 'credit_card' ? 'Credit Card' : 'PayPal'}<br />
+                <strong>Date:</strong> {formatDate(order.created_at)}<br />
+                <strong>Payment Method:</strong> {order.payment_method}<br />
                 <strong>Email:</strong> {order.email}
               </p>
             </div>
@@ -122,9 +146,9 @@ const OrderDetail = () => {
                 </tr>
               </thead>
               <tbody>
-                {order.items.map(item => (
+                {order.order_items && order.order_items.map(item => (
                   <tr key={item.id}>
-                    <td>{item.product_name}</td>
+                    <td>{item.product_name || 'Product'}</td>
                     <td>${parseFloat(item.price).toFixed(2)}</td>
                     <td>{item.quantity}</td>
                     <td className="text-end">${(parseFloat(item.price) * item.quantity).toFixed(2)}</td>
@@ -156,7 +180,7 @@ const OrderDetail = () => {
                   <hr />
                   <div className="d-flex justify-content-between fw-bold">
                     <span>Total:</span>
-                    <span>${parseFloat(order.total_price).toFixed(2)}</span>
+                    <span>${total.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -165,11 +189,84 @@ const OrderDetail = () => {
         </div>
       </div>
       
-      {order.order_status !== 'cancelled' && order.order_status !== 'delivered' && (
+      {order.status !== 'cancelled' && order.status !== 'delivered' && order.status !== 'Paid' && (
         <div className="text-end mb-5">
           <button className="btn btn-danger">Cancel Order</button>
         </div>
       )}
+      
+      {order.payment_id && (
+        <div className="card mb-4">
+          <div className="card-header bg-light">
+            <h5 className="mb-0">Payment Information</h5>
+          </div>
+          <div className="card-body">
+            <p><strong>Payment ID:</strong> {order.payment_id}</p>
+            <p><strong>Payment Status:</strong> {order.payment_status}</p>
+            {order.transaction_id && (
+              <p><strong>Transaction ID:</strong> {order.transaction_id}</p>
+            )}
+            {order.payment_method === 'PayPal' && (
+              <div className="alert alert-info">
+                <i className="fab fa-paypal me-2"></i>
+                This order was paid using PayPal.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      
+      {/* Order Timeline */}
+      <div className="card mb-5">
+        <div className="card-header bg-light">
+          <h5 className="mb-0">Order Timeline</h5>
+        </div>
+        <div className="card-body">
+          <ul className="timeline">
+            <li className="timeline-item">
+              <div className="timeline-marker"></div>
+              <div className="timeline-content">
+                <h5 className="timeline-title">Order Placed</h5>
+                <p className="timeline-date">{formatDate(order.created_at)}</p>
+                <p>Your order has been received and is being processed.</p>
+              </div>
+            </li>
+            
+            {order.payment_status === 'Paid' && (
+              <li className="timeline-item">
+                <div className="timeline-marker"></div>
+                <div className="timeline-content">
+                  <h5 className="timeline-title">Payment Confirmed</h5>
+                  <p className="timeline-date">{formatDate(order.updated_at)}</p>
+                  <p>Your payment has been confirmed.</p>
+                </div>
+              </li>
+            )}
+            
+            {order.status === 'shipped' && (
+              <li className="timeline-item">
+                <div className="timeline-marker"></div>
+                <div className="timeline-content">
+                  <h5 className="timeline-title">Order Shipped</h5>
+                  <p className="timeline-date">{formatDate(order.shipped_date || order.updated_at)}</p>
+                  <p>Your order has been shipped.</p>
+                </div>
+              </li>
+            )}
+            
+            {order.status === 'delivered' && (
+              <li className="timeline-item">
+                <div className="timeline-marker"></div>
+                <div className="timeline-content">
+                  <h5 className="timeline-title">Order Delivered</h5>
+                  <p className="timeline-date">{formatDate(order.delivered_date || order.updated_at)}</p>
+                  <p>Your order has been delivered.</p>
+                </div>
+              </li>
+            )}
+          </ul>
+        </div>
+      </div>
     </div>
   );
 };

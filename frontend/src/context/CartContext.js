@@ -79,11 +79,20 @@ export const CartProvider = ({ children }) => {
     localStorage.removeItem(cartStorageKey);
   };
 
+  // Add calculateTotal function
+  const calculateTotal = () => {
+    return cartItems.reduce((total, item) => {
+      return total + (parseFloat(item.price) * item.quantity);
+    }, 0);
+  };
+
   return (
     <CartContext.Provider value={{ 
       cartItems, 
       addToCart,
       removeFromCart,
+      clearCart,
+      calculateTotal, // Add this to the context value
       updateQuantity,
       clearCart
     }}>

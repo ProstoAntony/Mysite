@@ -18,6 +18,7 @@ const Checkout = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [serverStatus, setServerStatus] = useState(true); // Track server status
+  const [sdkReady, setSdkReady] = useState(false); // Добавляем состояние для PayPal SDK
   
   const { cartItems, calculateTotal, clearCart } = useCart();
   const api = useAxios();
@@ -75,10 +76,63 @@ const Checkout = () => {
     setPaymentMethod(e.target.value);
   };
   
+  // Добавляем эффект для загрузки PayPal SDK
+  useEffect(() => {
+    const loadPayPalScript = async () => {
+      // Clear any existing PayPal script
+      const existingScript = document.querySelector('script[src*="paypal"]');
+      if (existingScript) {
+        existingScript.remove();
+        setSdkReady(false);
+      }
+      
+      // Используем sandbox client ID для тестирования
+      // Если process.env.REACT_APP_PAYPAL_CLIENT_ID недоступен, используем резервный ID
+      const paypalClientId = 'AbT8A_4uf65aiST4niZ5d928FUpYOlWGIj5Ol4vovn-CGGF6pYKugXk4hGnwJEpSzRPCGo_IT5S6Wv_7';
+      console.log('Loading PayPal with client ID:', paypalClientId);
+      
+      const script = document.createElement('script');
+      script.src = `https://www.paypal.com/sdk/js?client-id=${paypalClientId}&currency=USD`;
+      script.async = true;
+      
+      script.onload = () => {
+        console.log('PayPal SDK loaded successfully');
+        setSdkReady(true);
+      };
+      
+      script.onerror = (err) => {
+        console.error('Failed to load PayPal SDK:', err);
+        setError('Failed to load payment system');
+        setSdkReady(false);
+      };
+      
+      document.body.appendChild(script);
+    };
+    
+    if (activeStep === 1 && paymentMethod === 'PayPal') {
+      loadPayPalScript();
+    }
+    
+    return () => {
+      const paypalScript = document.querySelector('script[src*="paypal"]');
+      if (paypalScript) {
+        paypalScript.remove();
+        setSdkReady(false);
+      }
+    };
+  }, [activeStep, paymentMethod]);
+  
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    
+    // Если выбран PayPal и SDK не загружен, показываем ошибку
+    if (paymentMethod === 'PayPal' && !sdkReady) {
+      setError('PayPal is still loading. Please wait a moment and try again.');
+      setLoading(false);
+      return;
+    }
     
     try {
       // Calculate totals directly
@@ -115,7 +169,113 @@ const Checkout = () => {
 
       console.log('Sending order data:', orderData);
       
-      // Send request to create order
+      // Если выбран PayPal, показываем кнопки PayPal
+      if (paymentMethod === 'PayPal' && sdkReady) {
+        // Очищаем контейнер перед рендерингом
+        const paypalContainer = document.getElementById('paypal-button-container');
+        if (paypalContainer) {
+          paypalContainer.innerHTML = '';
+          
+          // Рендерим кнопки PayPal
+          window.paypal.Buttons({
+            style: {
+              layout: 'vertical',
+              color: 'blue',
+              shape: 'rect',
+              label: 'paypal'
+            },
+            createOrder: function(data, actions) {
+              return actions.order.create({
+                purchase_units: [{
+                  amount: {
+                    value: total.toFixed(2)
+                  }
+                }]
+              });
+            },
+            // In your onApprove function in handlePlaceOrder
+            onApprove: async function(data, actions) {
+              try {
+                const details = await actions.order.capture();
+                console.log('Payment completed', details);
+                
+                // Map PayPal status to match what the backend expects
+                // The backend expects "Paid" not "paid"
+                const paymentStatus = "Paid";
+                
+                // Simplify the order data structure to match Django model expectations
+                const orderData = {
+                  full_name: shippingInfo.fullName,
+                  email: shippingInfo.email,
+                  address: shippingInfo.address,
+                  city: shippingInfo.city,
+                  postal_code: shippingInfo.postalCode,
+                  country: shippingInfo.country,
+                  payment_method: 'PayPal',
+                  payment_id: details.id,
+                  payment_status: paymentStatus,
+                  transaction_id: details.id, // Add transaction_id which is used in paypal_payment_verify
+                  status: 'Paid', // Match the case in the backend
+                  order_items: cartItems.map(item => ({
+                    product: item.id,
+                    quantity: item.quantity,
+                    price: parseFloat(item.price)
+                  })),
+                  total_price: calculateTotal()
+                };
+                
+                console.log('Sending simplified order data:', orderData);
+                
+                // Create order in backend
+                const response = await api.post('/orders/', orderData);
+                
+                if (response.status === 201) {
+                  clearCart();
+                  setActiveStep(2);
+                }
+              } catch (error) {
+                console.error('Payment capture error:', error);
+                if (error.response && error.response.data) {
+                  console.error('Error response data:', error.response.data);
+                  
+                  // Create a more readable error message
+                  let errorMessage = 'Payment verification failed: ';
+                  const errorData = error.response.data;
+                  
+                  if (errorData.payment_status) {
+                    errorMessage += `Invalid payment status: ${errorData.payment_status.join(', ')}`;
+                    console.log('Payment status error details:', errorData.payment_status);
+                  } else if (typeof errorData === 'object') {
+                    // Format other error fields
+                    const errorFields = Object.keys(errorData)
+                      .map(key => `${key}: ${Array.isArray(errorData[key]) ? errorData[key].join(', ') : errorData[key]}`)
+                      .join(', ');
+                    errorMessage += errorFields;
+                  } else {
+                    errorMessage += JSON.stringify(errorData);
+                  }
+                  
+                  setError(errorMessage);
+                } else {
+                  setError('Payment verification failed. Please contact support.');
+                }
+              }
+            },
+            onError: function(err) {
+              console.error('PayPal Error:', err);
+              setError('Payment failed. Please try again.');
+              setLoading(false);
+            }
+          }).render('#paypal-button-container');
+          
+          // Показываем контейнер с кнопками
+          paypalContainer.style.display = 'block';
+        }
+        setLoading(false);
+        return;
+      }
+      
+      // Для других методов оплаты отправляем запрос на создание заказа
       const response = await api.post('/orders/', orderData);
       
       if (response.status === 201) {
@@ -281,56 +441,78 @@ const Checkout = () => {
       
       {error && <div className="alert alert-danger">{error}</div>}
       
-      <form onSubmit={handlePlaceOrder}>
-        <div className="mb-4">
-          <div className="form-check">
-            <input
-              type="radio"
-              className="form-check-input"
-              id="PayPal"
-              name="paymentMethod"
-              value="PayPal"
-              checked={paymentMethod === 'PayPal'}
-              onChange={handlePaymentMethodChange}
-            />
-            <label className="form-check-label" htmlFor="PayPal">
-              PayPal
-            </label>
+      {paymentMethod === 'PayPal' && !sdkReady ? (
+        <div className="text-center my-4">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
           </div>
-          <div className="form-check">
-            <input
-              type="radio"
-              className="form-check-input"
-              id="Credit_Card"
-              name="paymentMethod"
-              value="Credit_Card"
-              checked={paymentMethod === 'Credit_Card'}
-              onChange={handlePaymentMethodChange}
-            />
-            <label className="form-check-label" htmlFor="Credit_Card">
-              Credit Card
-            </label>
-          </div>
+          <p className="mt-2">Loading PayPal...</p>
         </div>
-        
-        <div className="d-flex justify-content-between mt-4">
-          <button
-            type="button"
-            className="btn btn-outline-secondary"
-            onClick={() => setActiveStep(0)}
-          >
-            Back to Shipping
-          </button>
+      ) : (
+        <form onSubmit={handlePlaceOrder}>
+          <div className="mb-4">
+            <div className="form-check">
+              <input
+                type="radio"
+                className="form-check-input"
+                id="PayPal"
+                name="paymentMethod"
+                value="PayPal"
+                checked={paymentMethod === 'PayPal'}
+                onChange={handlePaymentMethodChange}
+              />
+              <label className="form-check-label" htmlFor="PayPal">
+                PayPal
+              </label>
+            </div>
+            <div className="form-check">
+              <input
+                type="radio"
+                className="form-check-input"
+                id="Credit_Card"
+                name="paymentMethod"
+                value="Credit_Card"
+                checked={paymentMethod === 'Credit_Card'}
+                onChange={handlePaymentMethodChange}
+              />
+              <label className="form-check-label" htmlFor="Credit_Card">
+                Credit Card
+              </label>
+            </div>
+          </div>
           
-          <button 
-            type="submit" 
-            className="btn btn-primary"
-            disabled={loading}
-          >
-            {loading ? 'Processing...' : 'Place Order'}
-          </button>
-        </div>
-      </form>
+          <div className="order-summary mb-4">
+            <h4>Order Summary</h4>
+            <div className="d-flex justify-content-between mb-2">
+              <span>Subtotal:</span>
+              <span>${calculateTotal().toFixed(2)}</span>
+            </div>
+            <hr />
+            <div className="d-flex justify-content-between fw-bold">
+              <span>Total:</span>
+              <span>${calculateTotal().toFixed(2)}</span>
+            </div>
+          </div>
+          
+          <div className="d-flex justify-content-between mt-4">
+            <button
+              type="button"
+              className="btn btn-outline-secondary"
+              onClick={() => setActiveStep(0)}
+            >
+              Back to Shipping
+            </button>
+            
+            <button 
+              type="submit" 
+              className="btn btn-primary"
+              disabled={loading}
+            >
+              {loading ? 'Processing...' : 'Place Order'}
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
   
@@ -356,6 +538,21 @@ const Checkout = () => {
           {activeStep === 0 && renderShippingForm()}
           {activeStep === 1 && renderPaymentForm()}
           {activeStep === 2 && renderSuccess()}
+        </div>
+      </div>
+      
+      {/* Добавляем контейнер для кнопок PayPal */}
+      <div className="row justify-content-center mt-4">
+        <div className="col-md-8">
+          <div 
+            id="paypal-button-container" 
+            style={{ 
+              minHeight: '200px', 
+              display: 'none',
+              marginTop: '20px',
+              width: '100%' 
+            }}
+          ></div>
         </div>
       </div>
     </div>
