@@ -24,7 +24,7 @@ function Profile() {
 
     const fetchProfileData = async () => {
         try {
-            const response = await api.get('/api/profile/', {  // Updated to match urls.py
+            const response = await api.get('/profile/', {
                 headers: {
                     'Authorization': `Bearer ${authTokens?.access}`
                 }
@@ -55,7 +55,7 @@ function Profile() {
                 formData.append('image', newImage);
             }
 
-            const response = await api.put('/api/profile/update/', formData, {  // Updated to match urls.py
+            const response = await api.put('/profile/update/', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                     'Authorization': `Bearer ${authTokens?.access}`
@@ -106,14 +106,16 @@ function Profile() {
                             <form onSubmit={handleSubmit}>
                                 <div className="row">
                                     <div className="col-md-4 text-center mb-3">
-                                        <img 
-                                            src={newImage ? URL.createObjectURL(newImage) : (profileData.image || "https://via.placeholder.com/150")}
-                                            alt="Profile" 
-                                            className="img-fluid rounded-circle mb-3"
-                                            style={{ width: "150px", height: "150px", objectFit: "cover" }}
-                                        />
+                                        {(newImage || profileData.image) && (
+                                            <img 
+                                                src={newImage ? URL.createObjectURL(newImage) : profileData.image}
+                                                alt="Profile" 
+                                                className="img-fluid rounded-circle mb-3"
+                                                style={{ width: "150px", height: "150px", objectFit: "cover" }}
+                                            />
+                                        )}
                                         <div className="mb-3">
-                                            <label className="form-label">Change Profile Picture</label>
+                                            <label className="form-label">Profile Picture</label>
                                             <input 
                                                 type="file" 
                                                 className="form-control" 

@@ -1,303 +1,379 @@
-import {useState, useEffect} from "react";
+import {useState, useEffect, useContext} from "react";
 import useAxios from "../utils/useAxios";
 import ProductList from "../Shop/ProductList";
 import {jwtDecode, jwtDecode as jwt_decode} from "jwt-decode";
-import { Link } from "react-router-dom";
+import { Link, Redirect } from "react-router-dom";
 import { useCart } from '../context/CartContext';
+import AuthContext from "../context/AuthContext";
 
 function Dashboard() {
-
-      const [res, setRes] = useState("")
+      const [res, setRes] = useState("");
       const api = useAxios();
-      const token = localStorage.getItem("authTokens")
-      const { cartItems } = useCart();  // Add this line to get cartItems from context
+      const token = localStorage.getItem("authTokens");
+      const { cartItems } = useCart();
+      const { user } = useContext(AuthContext);
+      const [userData, setUserData] = useState({
+        user_id: null,
+        username: '',
+        full_name: '',
+        image: ''
+      });
+      const [newProduct, setNewProduct] = useState({
+        name: '',
+        description: '',
+        price: '',
+        regular_price: '',
+        category: '',
+        stock: '',
+        image: null,
+        gallery: [] // Add gallery array for multiple images
+      });
+      const [categories, setCategories] = useState([]);
+      const [successMessage, setSuccessMessage] = useState('');
+      const [errorMessage, setErrorMessage] = useState('');
+      const [showCategoryModal, setShowCategoryModal] = useState(false);
+      const [newCategoryName, setNewCategoryName] = useState('');
+      
+      useEffect(() => {
+        if (token) {
+          try {
+            const decode = jwt_decode(token);
+            setUserData({
+              user_id: decode.user_id,
+              username: decode.username,
+              full_name: decode.full_name,
+              image: decode.image
+            });
+          } catch (error) {
+            console.error("Error decoding token:", error);
+          }
+        } else {
+          console.error("Token is not defined or invalid.");
+        }
+      }, [token]);
 
-      if (token) {
-        const decode = jwt_decode(token)
-        var user_id = decode.user_id
-        var username = decode.username
-        var full_name = decode.full_name
-        var image = decode.image
-
-      } else {
-      console.error("Token is not defined or invalid.");
-      }
-
+      // Remove the test API call since it's not necessary
       useEffect(() => {
         const fetchData = async () => {
-          try{
-            const response = await api.get("/test/")
-            setRes(response.data.response)
+          try {
+            const response = await api.get("/test/");
+            setRes(response.data.response);
           } catch (error) {
             console.log(error);
-            setRes("Something went wrong")
+            setRes("Something went wrong");
           }
-        }
-        fetchData()
-      }, [])
-
+        };
+        fetchData();
+      }, []); // Remove api from dependencies
 
       useEffect(() => {
-        const fetchPostData = async () => {
-          try{
-            const response = await api.post("/test/")
-            setRes(response.data.response)
+        const fetchCategories = async () => {
+          try {
+            const response = await api.get('/categories/');
+            console.log('Response status:', response.status); // Log response status
+            console.log('Response data:', response.data); // Log response data
+            const categoriesData = Array.isArray(response.data.results) ? response.data.results : [];
+            console.log('Categories data:', categoriesData); // Log the categories data
+            setCategories(categoriesData);
           } catch (error) {
-            console.log(error);
-            setRes("Something went wrong")
+            console.error('Error fetching categories:', error.response?.data || error);
+            setCategories([]);
           }
-        }
-        fetchPostData()
-      }, [])
+        };
+        fetchCategories();
+      }, []);
 
-    return (
+      const handleProductChange = (e) => {
+        const { name, value, files } = e.target;
+        if (name === 'image') {
+          setNewProduct(prev => ({
+            ...prev,
+            image: files[0]
+          }));
+        } else if (name === 'gallery') {
+          setNewProduct(prev => ({
+            ...prev,
+            gallery: Array.from(files)
+          }));
+        } else {
+          setNewProduct(prev => ({
+            ...prev,
+            [name]: value
+          }));
+        }
+      };
+
+      const handleProductSubmit = async (e) => {
+        e.preventDefault();
+        const formData = new FormData();
+        
+        // Append main fields
+        formData.append('name', newProduct.name);
+        formData.append('description', newProduct.description);
+        formData.append('price', newProduct.price);
+        formData.append('regular_price', newProduct.regular_price);
+        formData.append('category', newProduct.category);
+        formData.append('stock', newProduct.stock);
+        
+        // Append image files
+        if (newProduct.image) {
+            formData.append('image', newProduct.image);
+        }
+        
+        // Append gallery files with correct field name
+        newProduct.gallery.forEach((file) => {
+            formData.append('gallery', file);
+        });
+    
+        try {
+            const response = await api.post('/products/', formData);
+          
+          // Reset form
+          setNewProduct({
+            name: '',
+            description: '',
+            price: '',
+            regular_price: '',
+            category: '',
+            stock: '',
+            image: null,
+            gallery: []
+          });
+          setSuccessMessage('Product created successfully!');
+          setTimeout(() => setSuccessMessage(''), 3000);
+        } catch (error) {
+          setErrorMessage('Error creating product. Please try again.');
+          console.error('Error creating product:', error);
+          setTimeout(() => setErrorMessage(''), 3000);
+        }
+      };
+
+      const handleCreateCategory = async () => {
+          try {
+              // Создаем slug из названия категории (преобразуем в нижний регистр и заменяем пробелы на дефисы)
+              const slug = newCategoryName.toLowerCase().replace(/\s+/g, '-');
+              
+              console.log('Sending category data:', { title: newCategoryName, slug });
+              
+              // Добавляем slug в запрос
+              const response = await api.post('/categories/', { 
+                  title: newCategoryName,
+                  slug: slug
+              });
+              
+              console.log('Category created successfully:', response.data);
+              
+              // Обновим список категорий
+              setCategories(prev => [...prev, response.data]);
+              setShowCategoryModal(false);
+              setNewCategoryName('');
+              setNewProduct(prev => ({...prev, category: response.data.id}));
+              
+              // Покажем сообщение об успехе
+              setSuccessMessage('Category created successfully!');
+              setTimeout(() => setSuccessMessage(''), 3000);
+          } catch (error) {
+              console.error('Error creating category:', error);
+              console.error('Error details:', error.response?.data);
+              setErrorMessage('Failed to create category: ' + (JSON.stringify(error.response?.data) || 'Unknown error'));
+              setTimeout(() => setErrorMessage(''), 5000);
+          }
+      };
+
+      return (
           <div className="container-fluid" style={{ paddingTop: "100px" }}>
       <div className="row">
-        <nav className="col-md-2 d-none d-md-block bg-light sidebar mt-4">
-          <div className="sidebar-sticky">
-            <ul className="nav flex-column">
-              <li className="nav-item">
-                <Link className="nav-link" to="/dashboard">
-                  <i className="fas fa-home me-2"></i>
-                  Dashboard
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link className="nav-link" to="/orders">
-                  <i className="fas fa-shopping-bag me-2"></i>
-                  Orders
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link className="nav-link" to="/products">
-                  <i className="fas fa-box me-2"></i>
-                  Products
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link className="nav-link" to="/address">
-                  <i className="fas fa-map-marker-alt me-2"></i>
-                  Addresses
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link className="nav-link" to="/notifications">
-                  <i className="fas fa-bell me-2"></i>
-                  Notifications
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link className="nav-link" to="/wishlist">
-                  <i className="fas fa-heart me-2"></i>
-                  Wishlist
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link className="nav-link" to="#">
-                  <i className="fas fa-users me-2"></i>
-                  Customers
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link className="nav-link" to="#">
-                  <i className="fas fa-chart-bar me-2"></i>
-                  Reports
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link className="nav-link" to="#">
-                  <i className="fas fa-puzzle-piece me-2"></i>
-                  Integrations
-                </Link>
-              </li>
-            </ul>
-            <h6 className="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted">
-              <span>Saved reports</span>
-              <Link className="d-flex align-items-center text-muted" to="#">
-                <i className="fas fa-plus-circle"></i>
-              </Link>
-            </h6>
-            <ul className="nav flex-column mb-2">
-              <li className="nav-item">
-                <Link className="nav-link" to="#">
-                  <i className="fas fa-file-alt me-2"></i>
-                  Current month
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link className="nav-link" to="#">
-                  <i className="fas fa-file-alt me-2"></i>
-                  Last quarter
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link className="nav-link" to="#">
-                  <i className="fas fa-share-alt me-2"></i>
-                  Social engagement
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link className="nav-link" to="#">
-                  <i className="fas fa-tag me-2"></i>
-                  Year-end sale
-                </Link>
-              </li>
-            </ul>
-          </div>
-        </nav>
         <main role="main" className="col-md-9 ml-sm-auto col-lg-10 pt-3 px-4">
           <div className="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
-            <h1 className="h2">My Dashboard</h1>
-            <div className="btn-toolbar mb-2 mb-md-0">
-              <div className="btn-group mr-2">
-                <button className="btn btn-sm btn-outline-secondary">Share</button>
-                <button className="btn btn-sm btn-outline-secondary">Export</button>
-              </div>
-              <button className="btn btn-sm btn-outline-secondary dropdown-toggle">
-                <span data-feather="calendar" />
-                This week
-              </button>
-            </div>
+            <h1 className="h2">Admin Dashboard</h1>
           </div>
-          {/*<canvas className="my-4" id="myChart" width={900} height={380} />*/}
           <div className='alert alert-success'>
             <strong>{res}</strong>
           </div>
-          <h2>Section title</h2>
-          <ProductList />
-          <div className="table-responsive">
-            <table className="table table-striped table-sm">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Header</th>
-                  <th>Header</th>
-                  <th>Header</th>
-                  <th>Header</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>1,001</td>
-                  <td>Lorem</td>
-                  <td>ipsum</td>
-                  <td>dolor</td>
-                  <td>sit</td>
-                </tr>
-                <tr>
-                  <td>1,002</td>
-                  <td>amet</td>
-                  <td>consectetur</td>
-                  <td>adipiscing</td>
-                  <td>elit</td>
-                </tr>
-                <tr>
-                  <td>1,003</td>
-                  <td>Integer</td>
-                  <td>nec</td>
-                  <td>odio</td>
-                  <td>Praesent</td>
-                </tr>
-                <tr>
-                  <td>1,003</td>
-                  <td>libero</td>
-                  <td>Sed</td>
-                  <td>cursus</td>
-                  <td>ante</td>
-                </tr>
-                <tr>
-                  <td>1,004</td>
-                  <td>dapibus</td>
-                  <td>diam</td>
-                  <td>Sed</td>
-                  <td>nisi</td>
-                </tr>
-                <tr>
-                  <td>1,005</td>
-                  <td>Nulla</td>
-                  <td>quis</td>
-                  <td>sem</td>
-                  <td>at</td>
-                </tr>
-                <tr>
-                  <td>1,006</td>
-                  <td>nibh</td>
-                  <td>elementum</td>
-                  <td>imperdiet</td>
-                  <td>Duis</td>
-                </tr>
-                <tr>
-                  <td>1,007</td>
-                  <td>sagittis</td>
-                  <td>ipsum</td>
-                  <td>Praesent</td>
-                  <td>mauris</td>
-                </tr>
-                <tr>
-                  <td>1,008</td>
-                  <td>Fusce</td>
-                  <td>nec</td>
-                  <td>tellus</td>
-                  <td>sed</td>
-                </tr>
-                <tr>
-                  <td>1,009</td>
-                  <td>augue</td>
-                  <td>semper</td>
-                  <td>porta</td>
-                  <td>Mauris</td>
-                </tr>
-                <tr>
-                  <td>1,010</td>
-                  <td>massa</td>
-                  <td>Vestibulum</td>
-                  <td>lacinia</td>
-                  <td>arcu</td>
-                </tr>
-                <tr>
-                  <td>1,011</td>
-                  <td>eget</td>
-                  <td>nulla</td>
-                  <td>Class</td>
-                  <td>aptent</td>
-                </tr>
-                <tr>
-                  <td>1,012</td>
-                  <td>taciti</td>
-                  <td>sociosqu</td>
-                  <td>ad</td>
-                  <td>litora</td>
-                </tr>
-                <tr>
-                  <td>1,013</td>
-                  <td>torquent</td>
-                  <td>per</td>
-                  <td>conubia</td>
-                  <td>nostra</td>
-                </tr>
-                <tr>
-                  <td>1,014</td>
-                  <td>per</td>
-                  <td>inceptos</td>
-                  <td>himenaeos</td>
-                  <td>Curabitur</td>
-                </tr>
-                <tr>
-                  <td>1,015</td>
-                  <td>sodales</td>
-                  <td>ligula</td>
-                  <td>in</td>
-                  <td>libero</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <h2>Latest Products</h2>
+          
         </main>
       </div>
-    </div>
-    )
+            <div className="row">
+                {/* Product Form - Left Side */}
+                <div className="col-md-5">
+                    <div className="card">
+                        <div className="card-header bg-dark text-white">
+                            <h4 className="mb-0">Add New Product</h4>
+                        </div>
+                        <div className="card-body">
+                            {successMessage && (
+                                <div className="alert alert-success">{successMessage}</div>
+                            )}
+                            {errorMessage && (
+                                <div className="alert alert-danger">{errorMessage}</div>
+                            )}
+                            <form onSubmit={handleProductSubmit}>
+                                <div className="mb-3">
+                                    <label className="form-label">Product Name</label>
+                                    <input
+                                        type="text"
+                                        className="form-control"
+                                        name="name"
+                                        value={newProduct.name}
+                                        onChange={handleProductChange}
+                                        required
+                                    />
+                                </div>
+                                <div className="mb-3">
+                                    <label className="form-label">Description</label>
+                                    <textarea
+                                        className="form-control"
+                                        name="description"
+                                        value={newProduct.description}
+                                        onChange={handleProductChange}
+                                        required
+                                    />
+                                </div>
+                                <div className="mb-3">
+                                    <label className="form-label">Price</label>
+                                    <input
+                                        type="number"
+                                        className="form-control"
+                                        name="price"
+                                        value={newProduct.price}
+                                        onChange={handleProductChange}
+                                        required
+                                    />
+                                </div>
+                                <div className="mb-3">
+                                    <label className="form-label">Regular Price</label>
+                                    <input
+                                        type="number"
+                                        className="form-control"
+                                        name="regular_price"
+                                        value={newProduct.regular_price}
+                                        onChange={handleProductChange}
+                                        required
+                                    />
+                                </div>
+                                <div className="mb-3">
+                                    <label className="form-label">Category</label>
+                                    <div className="d-flex">
+                                        <select
+                                            className="form-select me-2"
+                                            name="category"
+                                            value={newProduct.category}
+                                            onChange={handleProductChange}
+                                            required
+                                        >
+                                            <option value="">Select Category</option>
+                                            {Array.isArray(categories) && categories.map(category => (
+                                              <option key={category.id} value={category.id}>
+                                                {category.title}
+                                              </option>
+                                            ))}
+                                        </select>
+                                        <button 
+                                            type="button" 
+                                            className="btn btn-outline-primary" 
+                                            onClick={() => setShowCategoryModal(true)}
+                                        >
+                                            <i className="fas fa-plus"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="mb-3">
+                                    <label className="form-label">Stock</label>
+                                    <input
+                                        type="number"
+                                        className="form-control"
+                                        name="stock"
+                                        value={newProduct.stock}
+                                        onChange={handleProductChange}
+                                        required
+                                    />
+                                </div>
+                                <div className="mb-3">
+                                    <label className="form-label">Image</label>
+                                    <input
+                                        type="file"
+                                        className="form-control"
+                                        name="image"
+                                        onChange={handleProductChange}
+                                        accept="image/*"
+                                        required
+                                    />
+                                </div>
+                                {/* Add Gallery Images Field */}
+                                <div className="mb-3">
+                                    <label className="form-label">Gallery Images</label>
+                                    <input
+                                        type="file"
+                                        className="form-control"
+                                        name="gallery"
+                                        onChange={handleProductChange}
+                                        accept="image/*"
+                                        multiple
+                                    />
+                                    <small className="text-muted">You can select multiple images for the gallery</small>
+                                </div>
+                                <button type="submit" className="btn btn-primary">
+                                    Add Product
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
 
+                {/* Product List - Right Side */}
+                <div className="col-md-7">
+                    <div className="card">
+                        <div className="card-header bg-dark text-white">
+                            <h4 className="mb-0">Our Products</h4>
+                        </div>
+                        <div className="card-body">
+                            <ProductList />
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {/* Модальное окно для создания категории */}
+            {showCategoryModal && (
+                <div className="modal fade show" style={{display: 'block', backgroundColor: 'rgba(0,0,0,0.5)'}}>
+                    <div className="modal-dialog">
+                        <div className="modal-content">
+                            <div className="modal-header">
+                                <h5 className="modal-title">Create New Category</h5>
+                                <button type="button" className="btn-close" onClick={() => setShowCategoryModal(false)}></button>
+                            </div>
+                            <div className="modal-body">
+                                <div className="mb-3">
+                                    <label className="form-label">Category Name</label>
+                                    <input
+                                        type="text"
+                                        className="form-control"
+                                        value={newCategoryName}
+                                        onChange={(e) => setNewCategoryName(e.target.value)}
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <div className="modal-footer">
+                                <button type="button" className="btn btn-secondary" onClick={() => setShowCategoryModal(false)}>
+                                    Cancel
+                                </button>
+                                <button 
+                                    type="button" 
+                                    className="btn btn-primary" 
+                                    onClick={handleCreateCategory}
+                                    disabled={!newCategoryName.trim()}
+                                >
+                                    Create Category
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 }
 
-
-export default Dashboard
+export default Dashboard;

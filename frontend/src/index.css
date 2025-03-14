@@ -70,3 +70,406 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+.product-gallery .main-image {
+    width: 100%;
+    height: 400px;
+    object-fit: contain;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+  
+  .thumbnail-container {
+    overflow-x: auto;
+    padding: 10px 0;
+  }
+  
+  .thumbnail {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+  }
+  
+  .thumbnail.active {
+    border-color: #0d6efd;
+  }
+  
+  .thumbnail:hover {
+    border-color: #0d6efd80;
+  }
+
+/* Стили для навбара */
+.navbar {
+    padding: 0.5rem 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.navbar-dark {
+    background-color: #171a21 !important;
+}
+
+.nav-link {
+    color: #b8b6b4 !important;
+    font-size: 14px;
+    padding: 0.5rem 1rem !important;
+    transition: color 0.2s;
+}
+
+.nav-link:hover {
+    color: #ffffff !important;
+}
+
+.form-control {
+    background-color: #316282 !important;
+    border: none;
+    color: white !important;
+}
+
+.form-control::placeholder {
+    color: #b8b6b4;
+}
+
+.btn-outline-light {
+    border-color: #4c5844;
+}
+
+.btn-outline-light:hover {
+    background-color: #4c5844;
+}
+
+.dropdown-menu {
+    background-color: #171a21;
+    border: 1px solid #4c5844;
+}
+
+.dropdown-item {
+    color: #b8b6b4;
+}
+
+.dropdown-item:hover {
+    background-color: #316282;
+    color: white;
+}
+
+.discount-slider {
+    padding: 20px;
+    background: #1b2838;
+    border-radius: 8px;
+}
+
+.discount-container {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.discount-container::-webkit-scrollbar {
+    display: none;
+}
+
+.discount-item .card {
+    transition: transform 0.2s;
+    background: #2a475e;
+    border: none;
+}
+
+.discount-item .card:hover {
+    transform: translateY(-5px);
+}
+
+.discount-badge {
+    border-radius: 0 4px 0 4px;
+}
+
+.card-title {
+    color: #ffffff;
+}
+
+.card-body {
+    background: #2a475e;
+}
+
+.game-card-image {
+    position: relative;
+    overflow: hidden;
+    background: #000;
+}
+
+.game-card-image img {
+    transition: transform 0.3s ease;
+}
+
+.game-card-image:hover img {
+    transform: scale(1.05);
+}
+
+.discount-item {
+    min-width: 460px;
+    margin-right: 1rem;
+}
+
+.discount-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.75);
+    color: #a4d007;
+    padding: 5px 10px;
+    border-radius: 2px;
+    font-weight: bold;
+}
+
+.price-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.old-price {
+    color: #738895;
+    text-decoration: line-through;
+    font-size: 0.9rem;
+}
+
+.new-price {
+    color: #beee11;
+    font-size: 1.1rem;
+    font-weight: bold;
+}
+
+.card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.game-card {
+    background: #16202d;
+    border-radius: 4px;
+    overflow: hidden;
+    transition: transform 0.2s;
+    width: 306px;
+    margin-right: 12px;
+}
+
+.game-card:hover {
+    transform: translateY(-3px);
+}
+
+.game-card-info {
+    padding: 10px;
+}
+
+.game-title {
+    color: #fff;
+    font-size: 14px;
+    margin-bottom: 5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.discount-badge {
+    position: absolute;
+    right: 0;
+    top: 0;
+    padding: 5px 8px;
+    background: #4c6b22;
+    color: #a4d007;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.price-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.old-price {
+    color: #738895;
+    text-decoration: line-through;
+    font-size: 11px;
+}
+
+.new-price {
+    color: #beee11;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.discount-container {
+    scrollbar-width: thin;
+    scrollbar-color: #4a63a72f #1b2838;
+}
+
+.discount-container::-webkit-scrollbar {
+    height: 8px;
+}
+
+.discount-container::-webkit-scrollbar-track {
+    background: #1b2838;
+}
+
+.discount-container::-webkit-scrollbar-thumb {
+    background-color: #4a63a72f;
+    border-radius: 4px;
+}
+
+.featured-banner {
+    width: 100%;
+    height: 380px;
+    overflow: hidden;
+}
+
+.main-banner-card {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #16202d;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.main-banner-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.main-banner-card:hover .main-banner-image {
+    transform: scale(1.02);
+}
+/* Для главного баннера */
+.main-banner-card .image-container {
+  height: 500px;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Для вторичных баннеров */
+.secondary-banner-card .image-container {
+  height: 250px;
+  overflow: hidden;
+  position: relative;
+}
+
+.image-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #000; /* Черный фон для незаполненных областей */
+}
+.secondary-banners {
+    gap: 20px;
+}
+
+.secondary-banner-item {
+    flex: 1;
+    height: 180px;
+}
+
+.secondary-banner-card {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #16202d;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.secondary-banner-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.secondary-banner-card:hover .secondary-banner-image {
+    transform: scale(1.02);
+}
+
+.banner-info {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 20px;
+    background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+}
+
+.banner-title {
+    color: #fff;
+    margin-bottom: 10px;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+}
+
+.banner-price-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+/* Checkout Steps Styling */
+.checkout-steps {
+  position: relative;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+}
+
+.step-number {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background-color: #e9ecef;
+  color: #6c757d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  margin-bottom: 8px;
+  transition: all 0.3s ease;
+}
+
+.step-title {
+  font-size: 0.9rem;
+  color: #6c757d;
+  transition: all 0.3s ease;
+}
+
+.step.active .step-number {
+  background-color: #007bff;
+  color: white;
+}
+
+.step.active .step-title {
+  color: #007bff;
+  font-weight: bold;
+}
+
+.step-line {
+  flex-grow: 1;
+  height: 2px;
+  background-color: #e9ecef;
+  margin: 0 15px;
+  position: relative;
+  top: 15px;
+  z-index: 0;
+}
+
+/* Order card styling */
+.order-items .list-group-item {
+  padding: 0.5rem 1rem;
+}
+
+.shipping-info address {
+  font-style: normal;
+}

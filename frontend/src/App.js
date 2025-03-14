@@ -19,6 +19,13 @@ import Wishlist from './Shop/Wishlist'
 import Address from './Shop/Address'
 import Notifications from './Shop/Notifications'
 import Profile from './views/Profile';
+import ProductDetail from './Shop/ProductDetail';
+// Add these imports at the top of your file
+import Checkout from './views/Checkout';
+import Purchases from './views/Purchases';
+import OrderDetail from './views/OrderDetail';
+
+
 
 
 
@@ -41,6 +48,11 @@ function App() {
                 <PrivateRoutes path="/wishlist" component={Wishlist} />
                 <PrivateRoutes path="/address" component={Address} />
                 <PrivateRoutes path="/profile" component={Profile} />
+                
+                <PrivateRoutes exact path="/checkout" component={Checkout} />
+                <PrivateRoutes exact path="/purchases" component={Purchases} />
+                <PrivateRoutes exact path="/order/:id" component={OrderDetail} />
+                <Route path="/product/:id" component={ProductDetail} />
                 <Route path="*" component={Homepage} />
               </Switch>
             </AddressProvider>
@@ -50,6 +62,8 @@ function App() {
     </Router>
   );
 }
+
+
 
 export default App
 

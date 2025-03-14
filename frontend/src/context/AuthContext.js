@@ -8,20 +8,11 @@ const AuthContext = createContext();
 export default AuthContext
 
 export const AuthProvider = ({children}) => {
-    const [authTokens, setAuthTokens] = useState(() =>
-        localStorage.getItem("authTokens")
-            ? JSON.parse(localStorage.getItem("authTokens"))
-            : null
-    );
+    let [authTokens, setAuthTokens] = useState(() => localStorage.getItem('authTokens') ? JSON.parse(localStorage.getItem('authTokens')) : null);
+    let [user, setUser] = useState(() => localStorage.getItem('authTokens') ? jwt_decode(localStorage.getItem('authTokens')) : null);
 
-
-    const [user, setUser] = useState(() =>
-        localStorage.getItem("authTokens")
-            ? jwt_decode(localStorage.getItem("authTokens"))
-            : null
-    );
-
-
+    // Add console.log to debug user data
+    console.log("Current user data:", user);
     const [loading, setLoading] = useState(true);
 
     const history = useHistory();
@@ -42,7 +33,15 @@ export const AuthProvider = ({children}) => {
         if(response.status === 200){
             console.log("Logged In");
             setAuthTokens(data)
-            setUser(jwt_decode(data.access))
+            // In login function:
+            const decoded = jwt_decode(data.access)
+            setUser({
+                'user_id': decoded.user_id,
+                'email': decoded.email,
+                'is_staff': decoded.is_staff,
+                'is_superuser': decoded.is_superuser,
+                'user_type': decoded.user_type  // Добавляем тип пользователя
+            })
             localStorage.setItem("authTokens", JSON.stringify(data))
             history.push("/")
             swal.fire({

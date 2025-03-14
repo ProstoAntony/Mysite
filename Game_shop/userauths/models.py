@@ -2,8 +2,10 @@ from django.db import models
 from django.db.models.signals import post_save
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
+from django.dispatch import receiver  # Добавляем импорт для декоратора @receiver
 
 USER_TYPE = (
+    ("Admin", "Admin"),
     ("Vendor", "Vendor"),
     ("Customer", "Customer"),
 )
@@ -30,9 +32,10 @@ class Profile(models.Model):
     full_name = models.CharField(max_length=255,  null=True, blank=True )
     bio = models.CharField ( max_length = 1000, null=True, blank=True)
     mobile = models.CharField(max_length=255,  null=True, blank=True )
-    user_type = models.CharField(max_length=255, choices=USER_TYPE, null=True, blank=True, default=None )
+    # Оставляем только одно определение поля user_type
+    user_type = models.CharField(max_length=255, choices=USER_TYPE, default="Customer")
     verified = models.BooleanField ( default = False )
-
+    
     def __str__(self):
         return self.user.username
 
@@ -41,6 +44,8 @@ class Profile(models.Model):
             self.full_name = self.user.username
         super(Profile, self).save(*args, **kwargs)
 
+
+@receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
     if created:
         Profile.objects.create(user=instance)

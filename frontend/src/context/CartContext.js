@@ -1,20 +1,49 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useContext as useReactContext } from 'react';
 import useAxios from '../utils/useAxios';
+import AuthContext from './AuthContext';
 
 const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
   const api = useAxios();
+  const { user, authTokens } = useReactContext(AuthContext);
+  
+  // Используем ID пользователя для создания уникального ключа хранилища
+  const cartStorageKey = user ? `userCart_${user.user_id}` : 'guestCart';
+  
+  // Сохраняем предыдущий ключ корзины для обработки выхода из аккаунта
+  const [prevCartKey, setPrevCartKey] = useState(cartStorageKey);
+  
   const [cartItems, setCartItems] = useState(() => {
-    // Initialize cart from localStorage
-    const savedCart = localStorage.getItem('userCart');
+    // Initialize cart from localStorage with user-specific key
+    const savedCart = localStorage.getItem(cartStorageKey);
     return savedCart ? JSON.parse(savedCart) : [];
   });
 
+  // Обновляем корзину при изменении пользователя
+  useEffect(() => {
+    // Если пользователь вышел из аккаунта (был user, стал null)
+    if (prevCartKey.includes('userCart_') && cartStorageKey === 'guestCart') {
+      // Сохраняем корзину авторизованного пользователя перед выходом
+      const userCart = localStorage.getItem(prevCartKey);
+      if (userCart) {
+        localStorage.setItem(cartStorageKey, userCart);
+        setCartItems(JSON.parse(userCart));
+      }
+    } else {
+      // Обычная загрузка корзины для текущего пользователя
+      const savedCart = localStorage.getItem(cartStorageKey);
+      setCartItems(savedCart ? JSON.parse(savedCart) : []);
+    }
+    
+    // Обновляем предыдущий ключ
+    setPrevCartKey(cartStorageKey);
+  }, [cartStorageKey, user]);
+
   // Save cart to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem('userCart', JSON.stringify(cartItems));
-  }, [cartItems]);
+    localStorage.setItem(cartStorageKey, JSON.stringify(cartItems));
+  }, [cartItems, cartStorageKey]);
 
   const addToCart = async (product) => {
     setCartItems(prev => {
@@ -47,7 +76,7 @@ export const CartProvider = ({ children }) => {
 
   const clearCart = () => {
     setCartItems([]);
-    localStorage.removeItem('userCart');
+    localStorage.removeItem(cartStorageKey);
   };
 
   return (

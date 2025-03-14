@@ -8,6 +8,18 @@ import os
 env = Env()
 env.read_env()
 
+# PayPal Settings
+# Move DEBUG setting before PAYPAL_CONFIG
+DEBUG = True
+
+# Then define PAYPAL_CONFIG
+PAYPAL_CONFIG = {
+    'client_id': env.str('PAYPAL_CLIENT_ID'),
+    'client_secret': env.str('PAYPAL_SECRET_ID'),
+    'api_url': 'https://api-m.sandbox.paypal.com' if DEBUG else 'https://api-m.paypal.com',
+    'mode': 'sandbox' if DEBUG else 'live'  # Оставляем только одну настройку mode
+}
+
 DATABASES = DATABASES_CONFIG
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -53,7 +65,17 @@ INSTALLED_APPS = [
     # 'captcha',
 ]
 
+# Update CORS settings
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+# Make sure CORS middleware is properly positioned
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',  # This should be at the top
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -61,7 +83,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
 ]
 
 # ANYMAIL = {
@@ -389,3 +410,5 @@ CKEDITOR_5_CONFIGS = {
         },
     },
 }
+
+

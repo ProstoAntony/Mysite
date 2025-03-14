@@ -23,7 +23,9 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['user_type'] = user.profile.user_type
         token['image'] = str(user.profile.image)
         token['verified'] = user.profile.verified
-
+        token['is_staff'] = user.is_staff
+        token['is_superuser'] = user.is_superuser
+        token['user_id'] = user.id
 
         return token
 

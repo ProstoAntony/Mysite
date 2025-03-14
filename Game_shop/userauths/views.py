@@ -4,11 +4,12 @@ from userauths.serializers import UserSerializer, MyTokenObtainPairSerializer, R
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework import generics, status
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from django.http import JsonResponse
 from .models import Profile
 from .serializers import UserSerializer
+from rest_framework.permissions import IsAdminUser
 
 def testEndPoint(request):
     return JsonResponse({'message': 'Test successful'})
@@ -33,9 +34,9 @@ def getRoutes(request):
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def dashboard(request):
-    if request.method == 'GET' :
-        data = f"Congratulation {request.user}, your API just responded to GET request"
-        return Response ( { 'response' : data } , status = status.HTTP_200_OK )
+    if request.method == 'GET':
+        data = f"Welcome to admin dashboard, {request.user}"
+        return Response({'response': data}, status=status.HTTP_200_OK)
     elif request.method == 'POST' :
         text = "Hello buddy"
         data = f'Congratulation {request.user}, your API just responded to POST request with text: {text}'
