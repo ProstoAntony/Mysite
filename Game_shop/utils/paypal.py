@@ -48,40 +48,100 @@ def clear_cart_items(request):
 def get_paypal_accsess_token():
     token_url = "https://api.sandbox.paypal.com/v1/oauth2/token"
     data = {'grant_type': 'client_credentials'}
-    auth = {settings.REACT_APP_PAYPAL_CLIENT_ID, settings.REACT_APP_PAYPAL_SECRET_ID}
-    request = requests.post(token_url, data=data, auth = auth)
+    auth = (settings.REACT_APP_PAYPAL_CLIENT_ID, settings.REACT_APP_PAYPAL_SECRET_ID)
+    response = requests.post(token_url, data=data, auth=auth)
 
     if response.status_code == 200:
         return response.json()['access_token']
     else:
-        raise Exception(f"failed to get access token from PayPal. Status code: {response.status_code}")
+        raise Exception(f"Failed to get access token from PayPal. Status code: {response.status_code}. Response: {response.text}")
+
 
 def paypal_payment_verify(request, order_id):
-    order = store_models.Order.objects.get(order_id=order_id)
-    transaction_id = request.Get.get("transaction_id")
-    paypal_api_url = f"https://api-m.sandbox.paypal.com/v2/checkout/orders/{transaction_id}"
-    headers = {
-        'Content-Type': 'application/json',
-        'Authorization': f"Bearer {get_paypal_accsess_token()}"
+    try:
+        order = Order.objects.get(order_id=order_id)
+        transaction_id = request.GET.get("transaction_id")
+        if not transaction_id:
+            raise ValueError("Transaction ID not provided")
+            
+        paypal_api_url = f"https://api-m.sandbox.paypal.com/v2/checkout/orders/{transaction_id}"
+        access_token = get_paypal_accsess_token()
+        
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f"Bearer {access_token}"
+        }
 
-    }
-    print (get_paypal_accsess_token())
-
-    response = requests.get(paypal_api_url, headers=headers)
-
-    if response.status_code == 200:
+        response = requests.get(paypal_api_url, headers=headers)
+        response.raise_for_status()
+        
         paypal_order_data = response.json()
         paypal_payment_status = paypal_order_data['status']
         payment_method = "PayPal"
-        if paypal_payment_status == "COMPLETED":
-            if order.payment_status == "Processing":
-                order.payment_status = "Paid"
-                order.payment_method = payment_method
-                order.save()
-                clear_cart_items(request)
-                return redirect(f"/payment_status/{order.order_id}/payment_status=paid")
-    else:
-        return redirect(f"/payment_status/{order.order_id}/payment_status=filed")
+
+        # Получаем детали платежа из PayPal
+        purchase_unit = paypal_order_data['purchase_units'][0]
+        paypal_amount = float(purchase_unit['amount']['value'])
+        paypal_currency = purchase_unit['amount']['currency_code']
+
+        # Пересчитываем сумму заказа на сервере
+        order_items = OrderItem.objects.filter(order=order)
+        calculated_subtotal = sum(item.price * item.qty for item in order_items)
+        
+        # Рассчитываем shipping
+        calculated_shipping = sum(item.product.shipping * item.qty for item in order_items if item.product.shipping)
+        
+        # Рассчитываем tax (например 10%)
+        tax_rate = 0.10  # Можно вынести в настройки
+        calculated_tax = round(calculated_subtotal * tax_rate, 2)
+        
+        # Рассчитываем service fee (например 5%)
+        service_fee_rate = 0.05  # Можно вынести в настройки
+        calculated_service_fee = round(calculated_subtotal * service_fee_rate, 2)
+        
+        # Общая сумма
+        calculated_total = calculated_subtotal + calculated_shipping + calculated_tax + calculated_service_fee
+
+        # Проверяем соответствие сумм с округлением до центов
+        if abs(paypal_amount - calculated_total) > 0.01:
+            logger.error(f"Payment amount mismatch: PayPal={paypal_amount}, Calculated={calculated_total}")
+            logger.error(f"Details: subtotal={calculated_subtotal}, shipping={calculated_shipping}, tax={calculated_tax}, fee={calculated_service_fee}")
+            return redirect(f"/payment_status/{order.order_id}/payment_status=amount_mismatch")
+
+        # Проверяем валюту
+        if paypal_currency != 'USD':
+            logger.error(f"Currency mismatch: Expected USD, got {paypal_currency}")
+            return redirect(f"/payment_status/{order.order_id}/payment_status=currency_mismatch")
+
+        if paypal_payment_status == "COMPLETED" and order.payment_status == "Processing":
+            # Обновляем заказ с пересчитанными значениями
+            order.sub_total = calculated_subtotal
+            order.shipping = calculated_shipping
+            order.tax = calculated_tax
+            order.service_fee = calculated_service_fee
+            order.total = calculated_total
+            order.payment_status = "Paid"
+            order.payment_method = payment_method
+            order.payment_id = transaction_id
+            order.save()
+            
+            clear_cart_items(request)
+            return redirect(f"/payment_status/{order.order_id}/payment_status=paid")
+            
+        return redirect(f"/payment_status/{order.order_id}/payment_status={paypal_payment_status.lower()}")
+            
+    except Order.DoesNotExist:
+        logger.error(f"Order not found: {order_id}")
+        return redirect("/payment_status/error?message=order_not_found")
+    except ValueError as e:
+        logger.error(f"Validation error: {str(e)}")
+        return redirect("/payment_status/error?message=validation_error")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"PayPal API error: {str(e)}")
+        return redirect("/payment_status/error?message=paypal_api_error")
+    except Exception as e:
+        logger.error(f"Unexpected error in payment verification: {str(e)}")
+        return redirect("/payment_status/error?message=unexpected_error")
 
 def payment_status(request, order_id):
     order = store_models.Order.objects.get(order_id=order_id)

@@ -1,28 +1,16 @@
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 from . import views
+from .views import CategoryViewSet, ProductViewSet, WishlistViewSet
+
+router = DefaultRouter()
+router.register('categories', CategoryViewSet, basename='category')
+router.register('products', ProductViewSet, basename='product')
+router.register('wishlist', WishlistViewSet, basename='wishlist')
 
 urlpatterns = [
-    path('products/', views.ProductViewSet.as_view({
-        'get': 'list',
-        'post': 'create'
-    }), name='product-list'),
-    path('products/<int:pk>/', views.ProductViewSet.as_view({
-        'get': 'retrieve',
-        'put': 'update',
-        'patch': 'partial_update',
-        'delete': 'destroy'
-    }), name='product-detail'),
+    path('', include(router.urls)),
     path('products/discounted/', views.get_discounted_products, name='discounted-products'),
-    
-    path('categories/', views.CategoryViewSet.as_view({
-        'get': 'list',
-        'post': 'create'
-    }), name='category-list'),
-    path('categories/<int:pk>/', views.CategoryViewSet.as_view({
-        'get': 'retrieve',
-        'put': 'update',
-        'delete': 'destroy'
-    }), name='category-detail'),
     
     path('cart/', views.CartViewSet.as_view({
         'get': 'list',

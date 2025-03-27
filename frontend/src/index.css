@@ -473,3 +473,14 @@ code {
 .shipping-info address {
   font-style: normal;
 }
+
+.background-style {
+    background: inherit;
+    background-image: url("../public/images/Background%2012.png");
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    min-height: 100vh;
+    position: relative;
+}

@@ -5,6 +5,12 @@ import ProductList from '../Shop/ProductList';
 import ProductListGuest from '../Shop/ProductListGuest';
 import { useCart } from '../context/CartContext';
 import useAxios from '../utils/useAxios';
+import { Swiper, SwiperSlide } from 'swiper/react';
+import { Autoplay, Navigation, Pagination } from 'swiper/modules';
+import 'swiper/css';
+import 'swiper/css/navigation';
+import 'swiper/css/pagination';
+import '../styles/swiper.css';
 
 function HomePage() {
     const { user } = useContext(AuthContext);
@@ -81,100 +87,260 @@ function HomePage() {
     };
 
     return (
-        <div className="container-fluid" style={{ paddingTop: "80px", background: '#1b2838' }}>
-            <div className="discount-slider">
-                {/* Main Featured Banner */}
-                <div className="featured-banner mb-3">
+        <div style={{ 
+            width: '100%',
+            minHeight: '100vh',
+            backgroundImage: 'url("/images/Background 12.png")',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            backgroundAttachment: 'fixed',
+            padding: '0' // Убираем отступ с 10px до 0
+        }}>
+            <div className="row" style={{ margin: 0 }}>
+                {/* Левый баннер - убираем все отступы */}
+                <div className="col-md-8" style={{ 
+                    padding: '0',
+                    height: '700px'
+                }}>
                     {discountedProducts.length > 0 && (
-                        <div className="main-banner-card">
-                            <div className="image-container">
-                                <img 
-                                    src={discountedProducts[0].image}
-                                    alt={discountedProducts[0].name}
-                                    className="main-banner-image"
-                                    style={{ 
-                                        width: '100%',
+                        <Swiper
+                            modules={[Autoplay, Navigation, Pagination]}
+                            spaceBetween={0}
+                            slidesPerView={1}
+                            navigation
+                            pagination={{ clickable: true }}
+                            autoplay={{
+                                delay: 3500,
+                                disableOnInteraction: false,
+                            }}
+                            style={{
+                                height: '100%',
+                                border: '2px solid rgba(255, 255, 255, 0.3)',
+                                borderRadius: '12px',
+                            }}
+                        >
+                            {discountedProducts.map((product) => (
+                                <SwiperSlide key={product.id}>
+                                    <div style={{
+                                        position: 'relative',
                                         height: '100%',
-                                        objectFit: 'contain',
-                                        objectPosition: 'center' 
-                                    }}
-                                    onError={(e) => {
-                                        e.target.onerror = null;
-                                        e.target.src = "https://via.placeholder.com/400x200?text=Product+Image";
-                                    }}
-                                />
-                            </div>
-                            <div className="banner-info">
-                                <h3 className="banner-title">{discountedProducts[0].name}</h3>
-                                <div className="banner-price-container">
-                                    <div className="discount-badge">
-                                        -{Math.round(((discountedProducts[0].regular_price - discountedProducts[0].price) / discountedProducts[0].regular_price) * 100)}%
-                                    </div>
-                                    <div className="price-info">
-                                        <div className="old-price">${discountedProducts[0].regular_price}</div>
-                                        <div className="new-price">${discountedProducts[0].price}</div>
-                                    </div>
-                                </div>
-                                {getActionButton(discountedProducts[0].id)}
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Two Smaller Banners */}
-                <div className="secondary-banners d-flex justify-content-between">
-                    {discountedProducts.slice(1, 3).map(product => {
-                        const discountPercentage = Math.round(
-                            ((product.regular_price - product.price) / product.regular_price) * 100
-                        );
-                        
-                        return (
-                            <div key={product.id} className="secondary-banner-item">
-                                {/* Удаляем внешний Link и оставляем только div */}
-                                <div className="secondary-banner-card">
-                                    <div className="image-container">
+                                        width: '100%',
+                                    }}>
                                         <img 
                                             src={product.image}
-                                            alt={product.name}
-                                            className="secondary-banner-image"
                                             style={{ 
-                                                width: '100%',
-                                                height: '100%',
-                                                objectFit: 'contain',
-                                                objectPosition: 'center' 
+                                                width: "100%",
+                                                height: "100%",
+                                                objectFit: "fill",
+                                                objectPosition: "center"
                                             }}
-                                            onError={(e) => {
-                                                e.target.onerror = null;
-                                                e.target.src = "https://via.placeholder.com/200x100?text=Product+Image";
-                                            }}
+                                            alt={product.name}
                                         />
-                                    </div>
-                                    <div className="banner-info">
-                                        <h4 className="banner-title">{product.name}</h4>
-                                        <div className="banner-price-container">
-                                            <div className="discount-badge">
-                                                -{discountPercentage}%
+                                        <div className="banner-info" style={{
+                                            position: 'absolute',
+                                            bottom: 0,
+                                            left: 0,
+                                            right: 0,
+                                            padding: '12px',
+                                            background: 'rgba(0,0,0,0.5)',
+                                            backdropFilter: 'blur(2px)'
+                                        }}>
+                                            <div className="d-flex justify-content-between align-items-center">
+                                                <h3 className="mb-0" style={{
+                                                    color: 'white',
+                                                    textShadow: '0 1px 2px rgba(0,0,0,0.8)'
+                                                }}>{product.name}</h3>
+                                                <div className="discount-badge badge bg-success" style={{
+                                                    fontSize: '1.2em',
+                                                    padding: '8px 15px'
+                                                }}>
+                                                    -{Math.round(((product.regular_price - product.price) / product.regular_price) * 100)}% OFF
+                                                </div>
                                             </div>
-                                            <div className="price-info">
-                                                <div className="old-price">${product.regular_price}</div>
-                                                <div className="new-price">${product.price}</div>
+                                            
+                                            <div className="d-flex justify-content-between align-items-center mt-2">
+                                                <div>
+                                                    <h4 className="mb-0 text-success fw-bold">${product.price}</h4>
+                                                    {product.regular_price && (
+                                                        <small className="text-danger text-decoration-line-through">
+                                                            ${product.regular_price}
+                                                        </small>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    {user ? (
+                                                        <Link to={`/product/${product.id}`} className="btn btn-success">
+                                                            <i className="fas fa-info-circle me-1"></i> View Details
+                                                        </Link>
+                                                    ) : (
+                                                        <Link to="/login" className="btn btn-success">
+                                                            <i className="fas fa-sign-in-alt me-1"></i> Login to Buy
+                                                        </Link>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
-                                        {getActionButton(product.id)}
+                                    </div>
+                                </SwiperSlide>
+                            ))}
+                        </Swiper>
+                    )}
+                </div>
+                
+                {/* Правая колонка - убираем отступы и увеличиваем ширину */}
+                <div className="col-md-4" style={{ 
+                    padding: '0' // Убираем отступы
+                }}>
+                    <div style={{ 
+                        height: '700px',
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '5px', // Уменьшаем расстояние между баннерами с 10px до 5px
+                        width: '100%', // Увеличиваем ширину с 80% до 100%
+                        margin: '0' // Убираем центрирование
+                    }}>
+                        {/* Верхний правый баннер */}
+                        {discountedProducts.length > 1 && (
+                            <div style={{
+                                position: 'relative',
+                                flex: '1.1',
+                                backgroundColor: 'transparent',
+                                border: '1px solid rgba(255, 255, 255, 0.3)',
+                                borderRadius: '8px',
+                                overflow: 'hidden'
+                            }}>
+                                <div style={{
+                                    padding: '0px', // Убираем отступ для полного заполнения
+                                    height: '100%'
+                                }}>
+                                    <img 
+                                        src={discountedProducts[1].image}
+                                        style={{ 
+                                            width: "100%",
+                                            height: "100%",
+                                            objectFit: "fill",
+                                            objectPosition: "center"
+                                        }}
+                                        alt={discountedProducts[1].name}
+                                    />
+                                </div>
+                                <div style={{
+                                    position: 'absolute',
+                                    bottom: 0,
+                                    left: 0,
+                                    right: 0,
+                                    padding: '12px',
+                                    background: 'rgba(0,0,0,0.5)',
+                                    backdropFilter: 'blur(2px)',
+                                    color: 'white'
+                                }}>
+                                    <div className="d-flex justify-content-between align-items-center">
+                                        <h5 className="mb-0" style={{
+                                            color: 'white',
+                                            textShadow: '0 1px 2px rgba(0,0,0,0.8)'
+                                        }}>{discountedProducts[1].name}</h5>
+                                        <span className="badge bg-success">
+                                            -{Math.round(((discountedProducts[1].regular_price - discountedProducts[1].price) / discountedProducts[1].regular_price) * 100)}% OFF
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="d-flex justify-content-between align-items-center mt-2">
+                                        <div>
+                                            <h6 className="mb-0 text-success fw-bold">${discountedProducts[1].price}</h6>
+                                            {discountedProducts[1].regular_price && (
+                                                <small className="text-danger text-decoration-line-through">
+                                                    ${discountedProducts[1].regular_price}
+                                                </small>
+                                            )}
+                                        </div>
+                                        <div>
+                                            {user ? (
+                                                <Link to={`/product/${discountedProducts[1].id}`} className="btn btn-sm btn-success">
+                                                    <i className="fas fa-info-circle me-1"></i> Details
+                                                </Link>
+                                            ) : (
+                                                <Link to="/login" className="btn btn-sm btn-success">
+                                                    <i className="fas fa-sign-in-alt me-1"></i> Login
+                                                </Link>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        );
-                    })}
+                        )}
+                        
+                        {/* Нижний правый баннер */}
+                        {discountedProducts.length > 2 && (
+                            <div style={{
+                                position: 'relative',
+                                flex: '0.9',
+                                backgroundColor: 'transparent',
+                                border: '1px solid rgba(255, 255, 255, 0.3)',
+                                borderRadius: '8px',
+                                overflow: 'hidden'
+                            }}>
+                                <div style={{
+                                    padding: '0px', // Убираем отступ для полного заполнения
+                                    height: '100%'
+                                }}>
+                                    <img 
+                                        src={discountedProducts[2].image}
+                                        style={{ 
+                                            width: "100%",
+                                            height: "100%",
+                                            objectFit: "fill",
+                                            objectPosition: "center"
+                                        }}
+                                        alt={discountedProducts[2].name}
+                                    />
+                                </div>
+                                <div style={{
+                                    position: 'absolute',
+                                    bottom: 0,
+                                    left: 0,
+                                    right: 0,
+                                    padding: '12px',
+                                    background: 'rgba(0,0,0,0.5)',
+                                    backdropFilter: 'blur(2px)',
+                                    color: 'white'
+                                }}>
+                                    <div className="d-flex justify-content-between align-items-center">
+                                        <h5 className="mb-0" style={{
+                                            color: 'white',
+                                            textShadow: '0 1px 2px rgba(0,0,0,0.8)'
+                                        }}>{discountedProducts[2].name}</h5>
+                                        <span className="badge bg-success">
+                                            -{Math.round(((discountedProducts[2].regular_price - discountedProducts[2].price) / discountedProducts[2].regular_price) * 100)}% OFF
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="d-flex justify-content-between align-items-center mt-2">
+                                        <div>
+                                            <h6 className="mb-0 text-success fw-bold">${discountedProducts[2].price}</h6>
+                                            {discountedProducts[2].regular_price && (
+                                                <small className="text-danger text-decoration-line-through">
+                                                    ${discountedProducts[2].regular_price}
+                                                </small>
+                                            )}
+                                        </div>
+                                        <div>
+                                            {user ? (
+                                                <Link to={`/product/${discountedProducts[2].id}`} className="btn btn-sm btn-success">
+                                                    <i className="fas fa-info-circle me-1"></i> Details
+                                                </Link>
+                                            ) : (
+                                                <Link to="/login" className="btn btn-sm btn-success">
+                                                    <i className="fas fa-sign-in-alt me-1"></i> Login
+                                                </Link>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
-            </div>
-
-            {/* Rest of the content */}
-            <div className="row mt-4">
-                <main role="main" className="col-12">
-                    <h2 className="text-light mb-4">Featured & Recommended</h2>
-                    {user ? <ProductList /> : <ProductListGuest />}
-                </main>
             </div>
         </div>
     );

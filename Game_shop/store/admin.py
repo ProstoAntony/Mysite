@@ -1,5 +1,6 @@
 from django.contrib import admin
 from store import models as store_models
+from .models import GameKey
 
 class GalleryInline(admin.TabularInline):
     model = store_models.Gallery
@@ -10,17 +11,43 @@ class VariantInline(admin.TabularInline):
 class VariantItemInline(admin.TabularInline):
     model = store_models.VariantItem
 
+@admin.register(store_models.Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ['title', 'image']
-    list_editable = ['image']
+    list_display = ['title', 'slug', 'get_products_count']
     prepopulated_fields = {'slug': ('title',)}
+    search_fields = ['title']
 
+    def get_products_count(self, obj):
+        return obj.product_set.count()
+    get_products_count.short_description = 'Games Count'
+
+@admin.register(store_models.Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ['name', 'category', 'price', 'regular_price', 'stock', 'status', 'featured', 'vendor', 'date']
-    search_fields = ['name', 'category__title']
-    list_filter = ['status', 'featured', 'category']
-    inlines = [GalleryInline, VariantInline]
-    prepopulated_fields = {'slug': ('name',)}
+    list_display = ['name', 'category', 'price', 'regular_price', 'stock', 'status']
+    list_filter = ['category', 'status', 'featured']
+    search_fields = ['name', 'description']
+    list_editable = ['price', 'regular_price', 'stock', 'status']
+    autocomplete_fields = ['category']
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'category', 'description', 'image')
+        }),
+        ('Pricing', {
+            'fields': ('price', 'regular_price', 'stock')
+        }),
+        ('Status', {
+            'fields': ('status', 'featured')
+        }),
+        ('Additional Info', {
+            'fields': ('sku', 'slug', 'vendor'),
+            'classes': ('collapse',)
+        })
+    )
+
+    def save_model(self, request, obj, form, change):
+        if not obj.vendor:
+            obj.vendor = request.user
+        super().save_model(request, obj, form, change)
 
 class VariantAdmin(admin.ModelAdmin):
     list_display = ['product', 'name']
@@ -61,8 +88,19 @@ class ReviewAdmin(admin.ModelAdmin):
     search_fields = ['user__username', 'product_name']
     list_filter = ['active', 'rating']
 
-admin.site.register(store_models.Category, CategoryAdmin)
-admin.site.register(store_models.Product, ProductAdmin)
+@admin.register(GameKey)
+class GameKeyAdmin(admin.ModelAdmin):
+    list_display = ['product', 'key', 'status', 'order', 'created_at']
+    list_filter = ['status', 'product', 'created_at']
+    search_fields = ['key', 'product__name', 'order__order_number']
+    readonly_fields = ['created_at', 'updated_at']
+    raw_id_fields = ['product', 'order']
+    
+    def get_readonly_fields(self, request, obj=None):
+        if obj and obj.status == 'sold':
+            return self.readonly_fields + ['key', 'status', 'product', 'order']
+        return self.readonly_fields
+
 admin.site.register(store_models.Variant, VariantAdmin)
 admin.site.register(store_models.VariantItem, VariantItemAdmin)
 admin.site.register(store_models.Gallery, GalleryAdmin)

@@ -4,14 +4,14 @@ from urllib import response
 from rest_framework import viewsets, filters
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Category, Product, Variant, VariantItem, Cart, Order, Gallery, Review
+from .models import Category, Product, Variant, VariantItem, Cart, Order, Gallery, Review, Wishlist, GameKey
 from .serializers import (
     CategorySerializer, ProductSerializer, VariantSerializer, 
     VariantItemSerializer, CartSerializer, OrderSerializer,
-    GallerySerializer, ReviewSerializer
+    GallerySerializer, ReviewSerializer, WishlistSerializer, GameKeySerializer
 )
-from django.db.models import F
-from rest_framework.decorators import api_view
+from django.db.models import F, Count
+from rest_framework.decorators import api_view, action
 from rest_framework.response import Response
 from .models import Product
 from .serializers import ProductSerializer
@@ -30,6 +30,7 @@ import logging
 import  requests
 
 from django.conf import settings
+from django.core.mail import send_mail
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -39,17 +40,52 @@ class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
-    filter_backends = [filters.SearchFilter]
-    search_fields = ['title']
+
+    def get_queryset(self):
+        try:
+            return Category.objects.annotate(
+                games_count=Count('product')
+            ).order_by('title')
+        except Exception as e:
+            logger.error(f"Error in CategoryViewSet.get_queryset: {str(e)}")
+            return Category.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        try:
+            queryset = Category.objects.all().order_by('title')
+            serializer = self.get_serializer(queryset, many=True, context={'request': request})
+            # Возвращаем данные в формате { results: [...] }
+            return Response({
+                'results': serializer.data
+            })
+        except Exception as e:
+            logger.error(f"Error in CategoryViewSet.list: {str(e)}")
+            return Response(
+                {"error": str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True)
+    def products(self, request, pk=None):
+        """Получить все игры в категории"""
+        category = self.get_object()
+        products = Product.objects.filter(
+            category=category,
+            status='Published'
+        )
+        serializer = ProductSerializer(products, many=True)
+        return Response(serializer.data)
 
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.filter(status="Published")
+    queryset = Product.objects.filter(status='Published')
     serializer_class = ProductSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['category', 'featured', 'status']
-    search_fields = ['name', 'description']
-    ordering_fields = ['price', 'date', 'name']
+
+    def get_queryset(self):
+        queryset = Product.objects.filter(status='Published')
+        category_id = self.request.query_params.get('category', None)
+        if category_id:
+            queryset = queryset.filter(category_id=category_id)
+        return queryset
 
 class VariantViewSet(viewsets.ModelViewSet):
     queryset = Variant.objects.all()
@@ -85,9 +121,73 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        if not user.is_authenticated:
+            return Order.objects.none()
+            
         if user.is_staff:
+            # Администраторы видят все заказы
+            logger.info(f"Admin user {user.username} accessing all orders")
             return Order.objects.all()
-        return Order.objects.filter(customer=user)
+        
+        # Фильтруем заказы по полю customer, которое есть в модели Order
+        customer_orders = Order.objects.filter(customer=user)
+        logger.info(f"User {user.username} (ID: {user.id}): Found {customer_orders.count()} orders with customer field")
+        
+        # Также проверяем, является ли пользователь продавцом (vendor) для каких-либо заказов
+        vendor_orders = Order.objects.filter(vendor=user)
+        logger.info(f"User {user.username} (ID: {user.id}): Found {vendor_orders.count()} orders as vendor")
+        
+        # Объединяем заказы, где пользователь является покупателем или продавцом
+        combined_orders = customer_orders | vendor_orders
+        
+        return combined_orders.distinct()
+
+    @action(detail=True, methods=['post'])
+    def process_payment(self, request, pk=None):
+        order = self.get_object()
+        
+        try:
+            # Проверяем оплату (здесь должна быть ваша логика проверки оплаты)
+            payment_successful = True
+            
+            if payment_successful:
+                # Обрабатываем каждый элемент заказа
+                for order_item in order.orderitem_set.all():
+                    # Пытаемся назначить ключ для каждого товара
+                    if order_item.assign_game_key():
+                        # Отправляем email с ключом
+                        if order_item.game_key:
+                            send_game_key_email(
+                                order.customer.email,
+                                order_item.product.name,
+                                order_item.game_key.key
+                            )
+                    else:
+                        # Если ключей нет в наличии
+                        return Response(
+                            {'error': f'No keys available for {order_item.product.name}'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                
+                # Обновляем статус заказа
+                order.payment_status = 'Paid'
+                order.order_status = 'Fulfilled'
+                order.save()
+                
+                # Возвращаем обновленные данные заказа
+                serializer = self.get_serializer(order)
+                return Response(serializer.data)
+            
+            return Response(
+                {'error': 'Payment failed'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.filter(active=True)
@@ -96,19 +196,54 @@ class ReviewViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['product', 'rating']
 
+class WishlistViewSet(viewsets.ModelViewSet):
+    serializer_class = WishlistSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Wishlist.objects.filter(user=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        try:
+            # Получаем ID продукта из запроса
+            product_id = request.data.get('product')
+            
+            # Проверяем существование продукта
+            product = Product.objects.get(id=product_id)
+            
+            # Проверяем, существует ли уже такая запись
+            wishlist_item, created = Wishlist.objects.get_or_create(
+                user=request.user,
+                product=product
+            )
+            
+            serializer = self.get_serializer(wishlist_item)
+            return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+            
+        except Product.DoesNotExist:
+            return Response(
+                {'detail': 'Product not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'detail': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
 def clear_cart_items(request):
     try:
-        cart_id = request.session.get['card_id']
-        store_models = Cart.objects.filter(cart_id=card_id).delete()
-    except:
-        pass
+        cart_id = request.session.get('card_id')  # Исправлено с [] на ()
+        Cart.objects.filter(cart_id=cart_id).delete()  # Исправлено с store_models и card_id
+    except Exception as e:
+        logger.error(f"Error clearing cart: {e}")
     return
 
 def get_paypal_accsess_token():
     token_url = "https://api.sandbox.paypal.com/v1/oauth2/token"
-    data = {'grant_type', 'client_credentials'}
-    auth = {settings.PAYPAL_CLIENT_ID, settings.PAYPAL_SECRET_ID}
-    request = requests.post(token_url, data=data, auth = auth)
+    data = {'grant_type': 'client_credentials'}  # Исправлено с set на dict
+    auth = (settings.PAYPAL_CLIENT_ID, settings.PAYPAL_SECRET_ID)  # Исправлено с set на tuple
+    response = requests.post(token_url, data=data, auth=auth)  # Исправлено с request на response
 
     if response.status_code == 200:
         return response.json()['access_token']
@@ -116,8 +251,8 @@ def get_paypal_accsess_token():
         raise Exception(f"failed to get access token from PayPal. Status code: {response.status_code}")
 
 def paypal_payment_verify(request, order_id):
-    order = store_models.Order.objects.get(order_id=order_id)
-    transaction_id = request.Get.get("transaction_id")
+    order = Order.objects.get(id=order_id)  # Исправлено с store_models.Order и order_id
+    transaction_id = request.GET.get("transaction_id")  # Исправлено с Get на GET
     paypal_api_url = f"https://api-m.sandbox.paypal.com/v2/checkout/orders/{transaction_id}"
     headers = {
         'Content-Type': 'application/json',
@@ -140,7 +275,21 @@ def paypal_payment_verify(request, order_id):
         return redirect(f"/payment_status/{order.order_id}/payment_status=filed")
 
 def payment_status(request, order_id):
-    order = store_models.Order.objects.get(order_id=order_id)
+    try:
+        # Пробуем найти заказ по id
+        order = Order.objects.get(id=order_id)
+    except Order.DoesNotExist:
+        try:
+            # Если не нашли, пробуем по order_id
+            order = Order.objects.get(order_id=order_id)
+        except Order.DoesNotExist:
+            return JsonResponse({'error': 'Order not found'}, status=404)
+        except Exception as e:
+            logger.error(f"Error finding order: {e}")
+            return JsonResponse({'error': 'Server error'}, status=500)
+    except Exception as e:
+        logger.error(f"Error finding order: {e}")
+        return JsonResponse({'error': 'Server error'}, status=500)
 
     context = {
         'order': order,
@@ -161,14 +310,11 @@ def get_discounted_products(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_order(request):
-    """
-    Create a new order
-    """
+    """Create a new order with server-side price calculations"""
     data = request.data
     user = request.user if request.user.is_authenticated else None
     
-    # Extract shipping address data
-    shipping_address_data = data.get('shipping_address', {})
+    logger.info(f"Creating order for user: {user.username} (ID: {user.id})")
     
     # Extract order items data
     order_items_data = data.get('order_items', [])
@@ -176,42 +322,96 @@ def create_order(request):
     if not order_items_data:
         return Response({"detail": "No order items provided"}, status=status.HTTP_400_BAD_REQUEST)
     
-    # Create order
-    order = Order.objects.create(
-        user=user,
-        full_name=shipping_address_data.get('full_name', ''),
-        email=shipping_address_data.get('email', ''),
-        address=shipping_address_data.get('address', ''),
-        city=shipping_address_data.get('city', ''),
-        postal_code=shipping_address_data.get('postal_code', ''),
-        country=shipping_address_data.get('country', ''),
-        payment_method=data.get('payment_method', 'PayPal'),
-        payment_id=data.get('payment_id', ''),
-        payment_status=data.get('payment_status', ''),
-        total_price=data.get('total', 0),
-        status='pending'
-    )
-    
-    # Create order items
-    for item_data in order_items_data:
-        product_id = item_data.get('product')
-        quantity = item_data.get('quantity', 1)
-        price = item_data.get('price', 0)
+    # Calculate order totals
+    try:
+        # Initialize totals
+        subtotal = 0
+        shipping_cost = 0
         
+        # Validate and calculate totals for each item
+        validated_items = []
+        for item_data in order_items_data:
+            product_id = item_data.get('product')
+            quantity = int(item_data.get('quantity', 1))
+            
+            try:
+                product = Product.objects.get(id=product_id)
+                
+                # Calculate item price and shipping
+                item_price = float(product.price)
+                item_shipping = float(product.shipping or 0)
+                
+                # Add to totals
+                item_subtotal = item_price * quantity
+                item_shipping_total = item_shipping * quantity
+                
+                subtotal += item_subtotal
+                shipping_cost += item_shipping_total
+                
+                validated_items.append({
+                    'product': product,
+                    'quantity': quantity,
+                    'price': item_price,
+                    'subtotal': item_subtotal,
+                    'shipping': item_shipping_total
+                })
+                
+            except Product.DoesNotExist:
+                return Response({"detail": f"Product with ID {product_id} not found"}, status=status.HTTP_400_BAD_REQUEST)
+            except (ValueError, TypeError) as e:
+                return Response({"detail": f"Invalid quantity or price for product {product_id}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Calculate tax and service fee
+        tax_rate = 0.10  # 10% tax rate
+        service_fee_rate = 0.05  # 5% service fee
+        
+        tax = round(subtotal * tax_rate, 2)
+        service_fee = round(subtotal * service_fee_rate, 2)
+        
+        # Calculate total
+        total = subtotal + shipping_cost + tax + service_fee
+        
+        # Create order
         try:
-            product = Product.objects.get(id=product_id)
-            OrderItem.objects.create(
-                order=order,
-                product=product,
-                quantity=quantity,
-                price=price
+            order = Order.objects.create(
+                customer=user,
+                payment_method=data.get('payment_method', 'PayPal'),
+                payment_status='Processing',
+                order_status='Pending',
+                sub_total=subtotal,
+                shipping=shipping_cost,
+                tax=tax,
+                service_fee=service_fee,
+                total=total
             )
-        except Product.DoesNotExist:
-            order.delete()
-            return Response({"detail": f"Product with ID {product_id} not found"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    serializer = OrderSerializer(order)
-    return Response(serializer.data, status=status.HTTP_201_CREATED)
+            
+            # Create order items
+            for item in validated_items:
+                OrderItem.objects.create(
+                    order=order,
+                    product=item['product'],
+                    qty=item['quantity'],
+                    price=item['price'],
+                    sub_total=item['subtotal'],
+                    shipping=item['shipping']
+                )
+            
+            # Add vendors to order
+            vendors = set(item['product'].vendor for item in validated_items if item['product'].vendor)
+            for vendor in vendors:
+                order.vendor.add(vendor)
+            
+            logger.info(f"Created order ID: {order.id} with total: {total}")
+            serializer = OrderSerializer(order)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            logger.error(f"Error creating order: {str(e)}")
+            return Response({"detail": "Error creating order"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+    except Exception as e:
+        logger.error(f"Error processing order data: {str(e)}")
+        return Response({"detail": "Error processing order data"}, status=status.HTTP_400_BAD_REQUEST)
     """Create a new order and handle payment processing"""
     data = request.data
     user = request.user
@@ -272,16 +472,30 @@ def create_order(request):
 
     try:
         # Create order in database
-        order = Order.objects.create(
-            customer=user,
-            sub_total=subtotal,
-            shipping=shipping_cost,
-            tax=tax,
-            total=total_price,
-            payment_method=payment_method,
-            payment_status="Processing",
-            order_status="Pending"
-        )
+        if user and user.is_authenticated:
+            order = Order.objects.create(
+                customer=user,  # Explicitly set authenticated user as customer
+                sub_total=subtotal,
+                shipping=shipping_cost,
+                tax=tax,
+                total=total_price,
+                payment_method=payment_method,
+                payment_status="Processing",
+                order_status="Pending"
+            )
+            logger.info(f"Created order with customer: {user.username} (ID: {user.id})")
+        else:
+            # Create order without customer if user is not authenticated
+            order = Order.objects.create(
+                sub_total=subtotal,
+                shipping=shipping_cost,
+                tax=tax,
+                total=total_price,
+                payment_method=payment_method,
+                payment_status="Processing",
+                order_status="Pending"
+            )
+            logger.warning("Created order without customer - user not authenticated")
 
         # Add vendors to the order
         vendors = set()
@@ -395,54 +609,54 @@ def paypal_cancel(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def capture_payment(request, order_id):
-    """Capture a PayPal payment after approval"""
     try:
-        # Find the order
-        order = Order.objects.get(order_id=order_id, customer=request.user)
-
-        if order.payment_status != "Processing":
-            return Response({
-                'detail': 'Order is not in processing state'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        if order.payment_method != 'paypal':
-            return Response({
-                'detail': 'This endpoint is only for PayPal payments'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        # Capture the payment
-        paypal_client = PayPalClient()
-        capture_response = paypal_client.capture_payment(order.payment_id)
-
-        if capture_response.get('status') in [200, 201]:
-            # Update order status
-            order.payment_status = "Completed"
-            order.order_status = "Processing"
+        order = Order.objects.get(order_id=order_id)
+        
+        # Проверяем статус оплаты
+        if order.payment_status == 'Paid':
+            # Для каждого товара в заказе
+            for order_item in order.orderitem_set.all():
+                # Если ключ еще не назначен
+                if not order_item.game_key:
+                    # Получаем доступный ключ
+                    available_key = GameKey.objects.filter(
+                        product=order_item.product,
+                        status='available'
+                    ).first()
+                    
+                    if available_key:
+                        # Назначаем ключ и меняем его статус
+                        available_key.status = 'sold'
+                        available_key.save()
+                        order_item.game_key = available_key
+                        order_item.save()
+                        
+                        # Отправляем email с ключом
+                        send_game_key_email(
+                            order.customer.email,
+                            order_item.product.name,
+                            available_key.key
+                        )
+            
+            # Обновляем статус заказа
+            order.order_status = 'Fulfilled'
             order.save()
-
+            
             return Response({
-                'order_id': order.order_id,
-                'status': 'payment_completed'
-            }, status=status.HTTP_200_OK)
-        else:
-            # Payment capture failed
-            error_message = capture_response.get('error', 'Unknown error')
-            logger.error(f"PayPal payment capture failed: {error_message}")
-
-            return Response({
-                'detail': f'Payment capture failed: {error_message}',
-                'paypal_error': capture_response.get('response', {})
-            }, status=status.HTTP_400_BAD_REQUEST)
-
+                'status': 'success',
+                'message': 'Payment captured and keys assigned'
+            })
+            
+        return Response({
+            'status': 'error',
+            'message': 'Order not paid'
+        }, status=400)
+        
     except Order.DoesNotExist:
         return Response({
-            'detail': 'Order not found'
-        }, status=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
-        logger.exception(f"Error capturing payment: {str(e)}")
-        return Response({
-            'detail': f'Error capturing payment: {str(e)}'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            'status': 'error',
+            'message': 'Order not found'
+        }, status=404)
 
 
 @api_view(['POST'])
@@ -469,4 +683,26 @@ def complete_order(request, order_id):
         return Response(serializer.data)
     else:
         return Response({"detail": "Payment information missing"}, status=status.HTTP_400_BAD_REQUEST)
+
+def send_game_key_email(email, game_name, key):
+    subject = f'Your game key for {game_name}'
+    message = f"""
+    Thank you for your purchase!
+    
+    Game: {game_name}
+    Key: {key}
+    
+    Please keep this key safe and do not share it with anyone.
+    If you have any issues activating your game, please contact our support.
+    
+    Enjoy your game!
+    """
+    
+    send_mail(
+        subject,
+        message,
+        settings.DEFAULT_FROM_EMAIL,
+        [email],
+        fail_silently=False,
+    )
 
