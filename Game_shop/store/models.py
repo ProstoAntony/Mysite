@@ -1,5 +1,6 @@
 import shortuuid
 from django.db import models
+from userauths.models import User
 from shortuuid.django_fields import ShortUUIDField
 from django.utils import timezone
 from django.utils.text import slugify
@@ -59,9 +60,8 @@ RATING = (
 
 class Category(models.Model):
     title = models.CharField(max_length=255)
-    image = models.ImageField(upload_to="images/", null=True, blank=True)
-    slug = models.SlugField(max_length=255, unique=True) # Financial-advice, не я придумал(
-
+    image = models.ImageField(upload_to="categories/", null=True, blank=True)
+    slug = models.SlugField(max_length=255, unique=True)
 
     def __str__(self):
         return self.title
@@ -70,37 +70,39 @@ class Category(models.Model):
         verbose_name_plural = "Categories"
         ordering = ['title']
 
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.title)
+        super().save(*args, **kwargs)
+
+    @property
+    def games_count(self):
+        return self.product_set.count()
+
 class Product(models.Model):
     name = models.CharField(max_length=100)
-    image = models.ImageField(upload_to="images", null=True, blank=True)
+    image = models.ImageField(upload_to="products/", null=True, blank=True)
     description = CKEditor5Field('Text', config_name='extends')
-
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
-
-    price = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, null=True, blank=True, verbose_name='Sale Price')
-    regular_price = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, null=True, blank=True, verbose_name='Regular Price')
-
-    stock = models.PositiveIntegerField(default=0, null=True, blank=True)
-    shipping = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, null=True, blank=True, verbose_name='Shipping Amount')
-
+    price = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    regular_price = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, null=True, blank=True)
+    stock = models.PositiveIntegerField(default=0)
     status = models.CharField(max_length=50, choices=STATUS, default="Published")
+    shipping = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, null=True, blank=True, verbose_name='Shipping Amount')
     featured = models.BooleanField(default=False, verbose_name="Marketplace Game-Shop")
-
     vendor = models.ForeignKey(user_models.User, on_delete=models.SET_NULL, null=True, blank=True)
-
     sku = ShortUUIDField(unique=True, length=5, max_length=50, prefix="SKU", alphabet="1234567890")
     slug = models.SlugField(null=True, blank=True)
-
     date = models.DateField(default=timezone.now)
-
-    class   Meta:
-       ordering = ['-id']
-       verbose_name_plural = "Products"
 
     def __str__(self):
         return self.name
 
-    def save (self,*args, **kwargs):
+    class Meta:
+        ordering = ['-id']
+        verbose_name_plural = "Products"
+
+    def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify(self.name) + "-" + str(shortuuid.uuid().lower()[:2])
         super(Product, self).save(*args, **kwargs)
@@ -161,8 +163,8 @@ class Coupon(models.Model):
         return self.code
 
 class Order(models.Model):
-    vendor = models.ManyToManyField(user_models.User, blank=True)
-    customer = models.ForeignKey(user_models.User, on_delete=models.SET_NULL, null=True, related_name="customer", blank=True)
+    customer = models.ForeignKey(user_models.User, on_delete=models.SET_NULL, null=True, related_name='orders', blank=True)
+    vendor = models.ManyToManyField(user_models.User, related_name='vendor_orders', blank=True)
     sub_total = models.DecimalField(default=0.00,  max_digits=12, decimal_places=2)
     shipping = models.DecimalField(default=0.00, max_digits=12, decimal_places=2)
     tax = models.DecimalField(default=0.00, max_digits=12, decimal_places=2)
@@ -211,6 +213,7 @@ class OrderItem(models.Model):
     item_id = ShortUUIDField(length=6, max_length=25, alphabet="1234567890")
     vendor = models.ForeignKey(user_models.User, on_delete=models.SET_NULL, null=True, related_name="vendor_order_items")
     date = models.DateTimeField(default=timezone.now)
+    game_key = models.ForeignKey('GameKey', on_delete=models.SET_NULL, null=True, blank=True, related_name='order_items')
 
     def __str__(self):
         return f"{self.order.order_id}"
@@ -219,6 +222,22 @@ class OrderItem(models.Model):
         return self.item_id
     class Meta:
         ordering = ['-date']
+
+    def assign_game_key(self):
+        if not self.game_key and self.product:
+            # Получаем доступный ключ для игры
+            available_key = GameKey.objects.filter(
+                product=self.product,
+                status='available'
+            ).first()
+            
+            if available_key:
+                available_key.status = 'sold'
+                available_key.save()
+                self.game_key = available_key
+                self.save()
+                return True
+        return False
 
 class Review(models.Model):
     user = models.ForeignKey(user_models.User, on_delete=models.SET_NULL, null=True, blank=True)
@@ -231,3 +250,52 @@ class Review(models.Model):
 
     def __str__(self):
         return f"{self.user.username} review on {self.product.name}"
+
+class Wishlist(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    product = models.ForeignKey('Product', on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'product')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username}'s wishlist - {self.product.name}"
+
+class GameKey(models.Model):
+    STATUS_CHOICES = [
+        ('available', 'Available'),
+        ('reserved', 'Reserved'),
+        ('sold', 'Sold'),
+    ]
+
+    product = models.ForeignKey('Product', on_delete=models.CASCADE, related_name='game_keys')
+    key = models.CharField(max_length=255, unique=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='available')
+    order = models.ForeignKey('Order', on_delete=models.SET_NULL, null=True, blank=True, related_name='game_keys')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Game Key'
+        verbose_name_plural = 'Game Keys'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.product.name} - {self.key} ({self.status})"
+
+    def reserve_key(self, order):
+        if self.status == 'available':
+            self.status = 'reserved'
+            self.order = order
+            self.save()
+            return True
+        return False
+
+    def mark_as_sold(self):
+        if self.status == 'reserved':
+            self.status = 'sold'
+            self.save()
+            return True
+        return False

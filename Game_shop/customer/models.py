@@ -9,17 +9,17 @@ TYPE = (
 )
 
 class Wishlist(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="wishlist")
-
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='customer_wishlist')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='customer_wishlists')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
     class Meta:
-        verbose_name_plural = "Wishlist"
+        unique_together = ('user', 'product')
+        ordering = ['-created_at']
 
     def __str__(self):
-        if self.product.name:
-            return self.product.name
-        else:
-            return "Wishlist"
+        return f"{self.user.username}'s customer wishlist - {self.product.name}"
+
 class Address(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
     full_name = models.CharField(max_length=200, null=True, blank=True, default=None)

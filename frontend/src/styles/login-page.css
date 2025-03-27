@@ -1,0 +1,35 @@
+.login-page .gaming-form__button {
+    background: rgba(33, 150, 243, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+}
+
+.login-page .gaming-form__button:hover {
+    background: rgba(33, 150, 243, 0.9);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
+}
+
+.login-page .gaming-form__button:active {
+    transform: translateY(0);
+}
+
+.login-page .gaming-form__button:disabled {
+    background: rgba(158, 158, 158, 0.7);
+    cursor: not-allowed;
+}
+
+/* Стили для ссылки "Don't have an account?" */
+.login-page .gaming-form__link {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #2196f3 !important;
+    transition: color 0.3s ease;
+}
+
+.login-page .gaming-form__link:hover {
+    color: #64b5f6 !important;
+    background: transparent !important;
+    transform: none !important;
+} 

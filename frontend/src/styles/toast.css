@@ -1,0 +1,60 @@
+.toast-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 16px 20px;
+    border-radius: 12px;
+    color: white;
+    font-size: 14px;
+    z-index: 9999;
+    min-width: 300px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    animation: slideIn 0.5s ease-out forwards;
+    backdrop-filter: blur(10px);
+}
+
+.toast-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.toast-content i {
+    font-size: 20px;
+}
+
+.toast-notification.success {
+    background-color: rgba(46, 213, 115, 0.95);
+}
+
+.toast-notification.error {
+    background-color: rgba(255, 71, 87, 0.95);
+}
+
+.toast-notification.info {
+    background-color: rgba(54, 162, 235, 0.95);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+.toast-notification.fade-out {
+    animation: fadeOut 0.3s ease-out forwards;
+} 
